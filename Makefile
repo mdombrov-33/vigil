@@ -1,4 +1,4 @@
-.PHONY: up down restart build logs ps migrate generate
+.PHONY: up down restart build logs ps migrate generate seed
 
 up:
 	docker compose up
@@ -32,7 +32,10 @@ generate:
 	cd packages/db && npx drizzle-kit generate --name $(name)
 
 migrate:
-	docker compose exec backend npm run migrate
+	docker compose restart backend
+
+seed:
+	docker compose exec backend npx tsx ../packages/db/src/seed/index.ts
 
 studio:
 	cd packages/db && npx drizzle-kit studio

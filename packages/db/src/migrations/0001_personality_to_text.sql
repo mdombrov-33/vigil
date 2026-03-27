@@ -1,0 +1,1 @@
+ALTER TABLE "heroes" ALTER COLUMN "personality" SET DATA TYPE text;

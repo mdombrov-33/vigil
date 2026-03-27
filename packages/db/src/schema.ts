@@ -2,6 +2,7 @@ import {
   pgTable,
   uuid,
   varchar,
+  text,
   integer,
   boolean,
   timestamp,
@@ -45,7 +46,7 @@ export const heroes = pgTable("heroes", {
   health: healthEnum("health").notNull().default("healthy"),
   cooldownUntil: timestamp("cooldown_until"),
   // Profile (used as HeroAgent system prompt material)
-  personality: varchar("personality", { length: 2000 }).notNull(),
+  personality: text("personality").notNull(),
   bio: varchar("bio", { length: 1000 }).notNull(),
   portraitUrl: varchar("portrait_url", { length: 500 }),
   // Mission counters for hero card UI
