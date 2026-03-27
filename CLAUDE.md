@@ -366,3 +366,237 @@ Docker Compose → local dev (Postgres + backend + MCP server)
 ```
 
 SDK built-in traces = primary observability. Langfuse Cloud = optional.
+
+---
+
+## Agent Implementation Sketch
+
+### SDK primitives we use
+
+```typescript
+import { Agent, run, MCPServerStreamableHttp } from '@openai/agents';
+import { z } from 'zod';
+```
+
+- `new Agent({ name, instructions, tools, mcpServers, outputType, model })` — agent definition
+- `run(agent, input)` — executes a single agent, returns `RunResult`
+- `run(agent, input, { stream: true })` — returns `StreamedRunResult`, iterable for SSE
+- `MCPServerStreamableHttp` — connects agents to our MCP server over HTTP
+- `outputType: z.object({...})` — structured output via Zod (TriageAgent, IncidentGeneratorAgent, EvalAgent)
+- `instructions: hero.personality` — HeroAgent system prompt comes directly from the DB field
+
+---
+
+### MCP connection strategy
+
+One shared `MCPServerStreamableHttp` instance, connected at backend startup, reused across all pipeline runs. Not connected/closed per-request — too expensive for a game with constant incident pipelines.
+
+```typescript
+// backend/src/agents/mcp.ts
+export const mcpServer = new MCPServerStreamableHttp({
+  url: 'http://mcp-server:3002/mcp',
+  name: 'Vigil MCP Server',
+  cacheToolsList: true, // tool list doesn't change at runtime
+});
+
+await mcpServer.connect(); // called once at startup
+```
+
+Agents that need DB access receive `mcpServers: [mcpServer]`. Agents that don't (TriageAgent, ReflectionAgent) get no MCP — keeps them fast and stateless.
+
+---
+
+### Orchestration: code-driven, not handoffs
+
+The pipeline is explicit TypeScript — we call each agent ourselves. No triage-style routing. No handoffs. The SDK agent loop handles tool calls within each agent; we handle the sequence between agents.
+
+```typescript
+// Full incident pipeline (pseudocode)
+async function runIncidentPipeline(incidentDescription: string, sessionId: string) {
+
+  // Step 1 — parallel: triage the incident + fetch available heroes
+  const [triage, roster] = await Promise.all([
+    runTriageAgent(incidentDescription),
+    runRosterAgent(),
+  ]);
+
+  // Step 2 — score heroes deterministically (pure code, no LLM)
+  const recommendation = scoreHeroes(triage.requiredStats, roster.heroes);
+
+  // Step 3 — store hidden recommendation via MCP
+  await runDispatcherAgent(incidentId, recommendation);
+
+  // → incident pin appears on the map here ←
+
+  // Step 4 — after player dispatches: calculate outcome (pure code)
+  const outcome = getMissionOutcome(dispatchedHeroes, triage.requiredStats);
+
+  // Step 5 — each dispatched hero writes their report (parallel)
+  const reports = await Promise.all(
+    dispatchedHeroes.map(hero => runHeroAgent(hero, outcome, missionContext))
+  );
+
+  // Step 6 — reflection pass on each report (sequential per hero, max 2 iterations)
+  const polishedReports = await Promise.all(
+    reports.map(report => runReflectionAgent(report))
+  );
+
+  // Step 7 — eval: reveal recommendation, score player choice
+  const eval_ = await runEvalAgent(incidentId, dispatchedHeroIds);
+
+  // Step 8 — stream all of the above to the frontend log panel via SSE
+}
+```
+
+---
+
+### Per-agent definitions
+
+**TriageAgent** — structured output, no MCP
+```typescript
+const TriageOutput = z.object({
+  requiredStats: z.record(z.enum(['threat','grit','presence','edge','tempo']), z.number()),
+  slotCount: z.number().min(1).max(4),
+  dangerLevel: z.number().min(1).max(3),
+});
+
+const triageAgent = new Agent({
+  name: 'TriageAgent',
+  instructions: 'Extract structured incident data from the description...',
+  outputType: TriageOutput,
+  model: 'gpt-4.1',
+});
+```
+
+**RosterAgent** — calls MCP `get_available_heroes`
+```typescript
+const rosterAgent = new Agent({
+  name: 'RosterAgent',
+  instructions: 'Fetch available heroes and return their profiles.',
+  mcpServers: [mcpServer],
+  model: 'gpt-4.1',
+});
+```
+
+**DispatcherAgent** — stores recommendation via MCP `save_dispatch_recommendation`
+```typescript
+const dispatcherAgent = new Agent({
+  name: 'DispatcherAgent',
+  instructions: 'Store the dispatch recommendation for this incident.',
+  mcpServers: [mcpServer],
+  model: 'gpt-4.1',
+});
+```
+
+**HeroAgent** — one instance per hero, personality as system prompt, calls MCP for mission history
+```typescript
+function createHeroAgent(hero: Hero) {
+  return new Agent({
+    name: `HeroAgent_${hero.alias}`,
+    instructions: hero.personality, // full lore prompt from DB
+    mcpServers: [mcpServer],        // needs get_hero_mission_history + save_mission_report
+    model: 'gpt-4.1',
+  });
+}
+```
+
+**ReflectionAgent** — evaluates HeroAgent report, rewrites if needed, max 2 iterations, no MCP
+```typescript
+const ReflectionOutput = z.object({
+  approved: z.boolean(),
+  rewrittenReport: z.string().optional(),
+  feedback: z.string(),
+});
+
+const reflectionAgent = new Agent({
+  name: 'ReflectionAgent',
+  instructions: 'Evaluate this mission report for quality and character voice consistency...',
+  outputType: ReflectionOutput,
+  model: 'gpt-4.1',
+});
+```
+
+**EvalAgent** — calls MCP `get_dispatch_recommendation`, compares to player choice
+```typescript
+const EvalOutput = z.object({
+  recommendedHeroIds: z.array(z.string()),
+  playerHeroIds: z.array(z.string()),
+  score: z.number().min(0).max(10),
+  explanation: z.string(),
+  verdict: z.enum(['optimal', 'good', 'suboptimal', 'poor']),
+});
+
+const evalAgent = new Agent({
+  name: 'EvalAgent',
+  instructions: 'Retrieve the hidden recommendation and compare it to the player dispatch...',
+  outputType: EvalOutput,
+  mcpServers: [mcpServer],
+  model: 'gpt-4.1',
+});
+```
+
+**IncidentGeneratorAgent** — structured output, no MCP
+```typescript
+const IncidentOutput = z.object({
+  title: z.string(),
+  description: z.string(),        // flavor text only, shown to player
+  requiredStats: z.record(...),   // internal, never shown
+  slotCount: z.number(),
+  dangerLevel: z.number(),
+  missionDuration: z.number(),    // seconds
+  expiryDuration: z.number(),     // seconds
+  hasInterrupt: z.boolean(),
+  interruptOptions: z.array(...).optional(),
+});
+
+const incidentGeneratorAgent = new Agent({
+  name: 'IncidentGeneratorAgent',
+  instructions: 'Generate a new city incident...',
+  outputType: IncidentOutput,
+  model: 'gpt-4.1',
+});
+```
+
+---
+
+### Streaming to SSE
+
+Backend runs the pipeline with `stream: true` and forwards events to the frontend SSE connection. The frontend log panel subscribes to one persistent SSE connection for the session.
+
+```typescript
+// Rough shape — not final
+const stream = await run(agent, input, { stream: true });
+
+for await (const event of stream) {
+  if (event.type === 'run_item_stream_event') {
+    sseConnection.send({ type: 'agent_event', data: event.item });
+  }
+  if (event.type === 'agent_updated_stream_event') {
+    sseConnection.send({ type: 'agent_switch', agent: event.agent.name });
+  }
+}
+
+await stream.completed;
+```
+
+Custom SSE events we'll also push (not from the agent stream, from our pipeline code):
+- `incident:new` — incident pin appears on the map
+- `hero:state_update` — roster bar updates after cooldown changes
+- `mission:outcome` — outcome calculated, triggers report generation
+
+---
+
+### Files to create
+
+```
+backend/src/agents/
+├── mcp.ts                    # shared MCPServerStreamableHttp instance
+├── triage.ts                 # TriageAgent
+├── roster.ts                 # RosterAgent
+├── dispatcher.ts             # DispatcherAgent
+├── hero.ts                   # createHeroAgent(hero)
+├── reflection.ts             # ReflectionAgent
+├── eval.ts                   # EvalAgent
+├── incident-generator.ts     # IncidentGeneratorAgent
+└── pipeline.ts               # runIncidentPipeline() — orchestrates all of the above
+```
