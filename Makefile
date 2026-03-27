@@ -21,6 +21,9 @@ logs:
 logs-backend:
 	docker compose logs -f backend
 
+logs-mcp:
+	docker compose logs -f mcp-server
+
 logs-db:
 	docker compose logs -f postgres
 

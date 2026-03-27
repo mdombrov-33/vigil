@@ -16,6 +16,22 @@ services:
       timeout: 5s
       retries: 5
 
+  mcp-server:
+    build:
+      context: .
+      dockerfile: mcp-server/Dockerfile
+      target: dev
+    env_file: ./mcp-server/.env
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./mcp-server/src:/app/mcp-server/src
+      - ./packages/db/src:/app/packages/db/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   backend:
     build:
       context: .
