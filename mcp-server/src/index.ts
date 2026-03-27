@@ -10,26 +10,26 @@ import { registerSaveMissionReport } from "./tools/save_mission_report.js";
 import { registerSaveDispatchRecommendation } from "./tools/save_dispatch_recommendation.js";
 import { registerGetDispatchRecommendation } from "./tools/get_dispatch_recommendation.js";
 
-const server = new McpServer({
-  name: "vigil-mcp",
-  version: "1.0.0",
-});
-
-registerGetAvailableHeroes(server);
-registerGetHeroProfile(server);
-registerGetHeroMissionHistory(server);
-registerUpdateHeroState(server);
-registerSaveMissionReport(server);
-registerSaveDispatchRecommendation(server);
-registerGetDispatchRecommendation(server);
+function createServer() {
+  const server = new McpServer({ name: "vigil-mcp", version: "1.0.0" });
+  registerGetAvailableHeroes(server);
+  registerGetHeroProfile(server);
+  registerGetHeroMissionHistory(server);
+  registerUpdateHeroState(server);
+  registerSaveMissionReport(server);
+  registerSaveDispatchRecommendation(server);
+  registerGetDispatchRecommendation(server);
+  return server;
+}
 
 const app = express();
 app.use(express.json());
 
 app.post("/mcp", async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // stateless
+    sessionIdGenerator: undefined,
   });
+  const server = createServer();
   res.on("close", () => transport.close());
   await server.connect(transport);
   await transport.handleRequest(req, res, req.body);
@@ -39,6 +39,7 @@ app.get("/mcp", async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
+  const server = createServer();
   res.on("close", () => transport.close());
   await server.connect(transport);
   await transport.handleRequest(req, res);

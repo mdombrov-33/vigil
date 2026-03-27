@@ -23,17 +23,33 @@ export type IncidentGeneratorOutput = z.infer<
 const interruptOptionSchema = z.object({
   id: z.string(),
   text: z.string().describe("Player-facing option text"),
-  requiredStat: statSchema,
-  requiredValue: z.number().min(1).max(10),
   isHeroSpecific: z
     .boolean()
-    .describe("True for the top-hero-only guaranteed-success option"),
+    .describe(
+      "True for the top-hero-only option — no stat check, guaranteed success if that hero was sent",
+    ),
+  requiredStat: statSchema
+    .optional()
+    .describe("Only set when isHeroSpecific is false"),
+  requiredValue: z
+    .number()
+    .min(1)
+    .max(10)
+    .optional()
+    .describe("Only set when isHeroSpecific is false"),
 });
 
 export const TriageOutputSchema = z.object({
   requiredStats: z
-    .record(statSchema, z.number().min(1).max(10))
-    .describe("Stats this incident tests and how heavily (1–10)"),
+    .object({
+      threat: z.number().min(1).max(10),
+      grit: z.number().min(1).max(10),
+      presence: z.number().min(1).max(10),
+      edge: z.number().min(1).max(10),
+      tempo: z.number().min(1).max(10),
+    })
+    .partial()
+    .describe("Stats this incident tests and how heavily (1–10). Only include relevant stats."),
   slotCount: z.number().min(1).max(4).describe("Max hero slots"),
   dangerLevel: z.number().min(1).max(3).describe("1=minor 2=standard 3=major"),
   missionDuration: z.number().describe("Seconds heroes are on scene"),

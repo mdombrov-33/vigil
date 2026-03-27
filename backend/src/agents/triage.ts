@@ -16,7 +16,7 @@ Rules:
 - missionDuration: time heroes spend on scene in seconds. Minor ~30s, standard ~60s, major ~90–120s
 - expiryDuration: time before incident expires unresolved. Minor ~60s, standard ~120s, major ~180s
 - hasInterrupt: true for dramatic mid-mission decision points. Not every incident needs one.
-- interruptOptions: if hasInterrupt, provide 2–4 options. Exactly one must have isHeroSpecific=true (the top-hero guaranteed-success path).
+- interruptOptions: if hasInterrupt, provide 2–4 options. Exactly one must have isHeroSpecific=true — guaranteed success if the top hero was dispatched, no stat check needed, do NOT set requiredStat/requiredValue on it. All other options must have requiredStat and requiredValue. All option text must read as a plain action description — never reference "your hero", "if you sent", or any meta-game language. Same tone as the other options.
 
 Be consistent. A bank robbery with armed gunmen needs threat + grit. A hostage negotiation needs presence + edge.`,
   outputType: TriageOutputSchema,

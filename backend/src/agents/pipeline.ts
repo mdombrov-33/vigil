@@ -13,8 +13,7 @@ import {
 } from "@/services/cooldown.js";
 import type { RequiredStats } from "@/types";
 
-// ── Incident Creation Pipeline ────────────────────────────────────────────────
-
+// Incident Creation Pipeline
 export async function runIncidentCreationPipeline(
   sessionId: string,
 ): Promise<string> {
@@ -72,7 +71,7 @@ export async function runIncidentCreationPipeline(
   return incident.id;
 }
 
-// ── Mission Pipeline ──────────────────────────────────────────────────────────
+// Mission Pipeline
 
 export async function runMissionPipeline(
   incidentId: string,

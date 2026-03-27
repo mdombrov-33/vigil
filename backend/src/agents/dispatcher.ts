@@ -28,7 +28,7 @@ export async function runDispatcherAgent(
   const heroSummary = recommendedHeroes
     .map(
       (h, i) =>
-        `${i + 1}. ${h.alias} (${h.name}) — threat:${h.threat} grit:${h.grit} presence:${h.presence} edge:${h.edge} tempo:${h.tempo}`,
+        `${i + 1}. ${h.alias} (${h.name}) [id:${h.id}] — threat:${h.threat} grit:${h.grit} presence:${h.presence} edge:${h.edge} tempo:${h.tempo}`,
     )
     .join("\n");
 
