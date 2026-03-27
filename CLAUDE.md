@@ -59,15 +59,15 @@ vigil/
 
 ## Agents
 
-| Agent                      | Role                                                                                                                                                                                                                                                                                                    | Patterns                 |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **TriageAgent**            | Raw incident → structured: threat type, required stats, danger level, hero slots (1–4)                                                                                                                                                                                                                  | Structured output (Zod)  |
-| **RosterAgent**            | Fetches available heroes via MCP, returns profiles                                                                                                                                                                                                                                                      | Tool use                 |
-| **DispatcherAgent**        | Orchestrator. Triage + Roster → deterministic scoring (code) → stores hidden recommendation                                                                                                                                                                                                             | Planning, routing        |
-| **HeroAgent**              | One agent class, instantiated per hero with that hero's system prompt (personality, voice, catchphrase). Receives code-determined outcome + mission context + last 5 own missions → writes first-person report in character. Marcus and Zara produce completely different reports for the same outcome. | Memory (last 5 missions) |
-| **ReflectionAgent**        | Evaluates HeroAgent report, rewrites if low quality. Max 2 iterations                                                                                                                                                                                                                                   | Reflection loop          |
-| **EvalAgent**              | Reveals hidden recommendation, compares to player choice, scores and explains                                                                                                                                                                                                                           | Evaluation               |
-| **IncidentGeneratorAgent** | Generates new incidents dynamically — title, description, required stats (internal), slot count, interrupt options                                                                                                                                                                                      | Structured output        |
+| Agent                      | Role                                                                                                                                                                                                                                                                                       | Patterns                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ |
+| **TriageAgent**            | Raw incident → structured: threat type, required stats, danger level, hero slots (1–4)                                                                                                                                                                                                     | Structured output (Zod)  |
+| **RosterAgent**            | Fetches available heroes via MCP, returns profiles                                                                                                                                                                                                                                         | Tool use                 |
+| **DispatcherAgent**        | Orchestrator. Triage + Roster → deterministic scoring (code) → stores hidden recommendation                                                                                                                                                                                                | Planning, routing        |
+| **HeroAgent**              | One agent class, instantiated per hero with that hero's system prompt (personality, voice). Receives code-determined outcome + mission context + last 5 own missions → writes first-person report in character. Marcus and Zara produce completely different reports for the same outcome. | Memory (last 5 missions) |
+| **ReflectionAgent**        | Evaluates HeroAgent report, rewrites if low quality. Max 2 iterations                                                                                                                                                                                                                      | Reflection loop          |
+| **EvalAgent**              | Reveals hidden recommendation, compares to player choice, scores and explains                                                                                                                                                                                                              | Evaluation               |
+| **IncidentGeneratorAgent** | Generates new incidents dynamically — title, description, required stats (internal), slot count, interrupt options                                                                                                                                                                         | Structured output        |
 
 **Incident pipeline order:** IncidentGeneratorAgent creates the incident → TriageAgent + RosterAgent run via `Promise.all` → DispatcherAgent forms hidden recommendation → **only then** the incident pin appears on the map. By the time the player sees it, analysis is complete.
 
@@ -262,6 +262,7 @@ Comic book aesthetic, dark theme.
 ## Game Mode (MVP)
 
 **City Health** — starts at 100. The city takes damage when missions fail or expire unresolved.
+
 - Normal mission failure: -10 HP
 - Hero goes down: -20 HP
 - Incident expires unresolved (nobody dispatched in time): -15 HP
@@ -271,14 +272,28 @@ Comic book aesthetic, dark theme.
 
 **Spawn pressure** — new incident every ~45–60s. Max 4 active on the map. No artificial help — if the player's roster is depleted, incidents pile up. That's a consequence, not a bug.
 
-**Mission duration** set by IncidentGeneratorAgent at creation time:
-- Quick (minor incident): ~30s
-- Standard: ~60s
-- Major: ~90–120s
+**Danger level** — internal scale 1–3: 1=minor, 2=standard, 3=major. Never shown as a number to the player (only as visual pin styling on the map).
 
-Heroes are locked `on_mission` for the full duration regardless of stat coverage. Outcome calculated at completion.
+**Mission duration** (time on scene) set by IncidentGeneratorAgent at creation time:
+
+- Minor (danger 1): ~30s
+- Standard (danger 2): ~60s
+- Major (danger 3): ~90–120s
+
+**Travel time** — heroes travel to the incident and back to base. Flat ~10–15s each way for now. Heroes are locked `on_mission` for the full trip: travel there + mission duration + travel back. Outcome is calculated when mission duration completes (while still on scene), heroes return after.
+
+**Incident status lifecycle:** `pending` → `en_route` → `active` → `completed` | `expired`
+
+- `pending` — on the map, waiting for player to dispatch
+- `en_route` — heroes traveling to the incident
+- `active` — heroes on scene, mission running
+- `completed` — mission done (success or failure)
+- `expired` — expiry timer ran out, nobody dispatched
+
+Future: travel time could scale with map position or Tempo stat.
 
 **Incident expiry timer** — each incident has a countdown before it expires unresolved. Scales with difficulty: harder incidents give more time (bigger events take longer to unfold, player needs time to find the right heroes). Expiry timer visible on the map pin.
+
 - Minor: ~60s to dispatch before expiry
 - Standard: ~120s
 - Major: ~180s
