@@ -90,5 +90,9 @@ export async function dispatchHeroes(req: Request, res: Response) {
     console.error(`[mission-pipeline] error for incident ${incidentId}:`, err),
   );
 
-  sendJson(res, 200, { ok: true });
+  sendJson(res, 200, {
+    incidentId,
+    status: "en_route",
+    heroes: dispatchedHeroes.map((h) => ({ id: h.id, alias: h.alias })),
+  });
 }

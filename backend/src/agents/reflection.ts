@@ -11,10 +11,9 @@ Evaluate mission reports written by hero agents. Approve reports that:
 - Stay in character (voice matches the hero's established personality)
 - Address the incident specifically — not generic
 - Match the stated outcome (success vs failure should feel different)
-- Are 2–4 paragraphs, readable, not repetitive
+- Are exactly 3 sentences or fewer
 
-Reject and rewrite reports that are generic, break character, or contradict the outcome.
-Max 2 review iterations per report. If rewriting, match the hero's voice exactly.`,
+Reject and rewrite ONLY for: wrong voice, generic content, or outcome mismatch. Do NOT reject for length — 3 sentences is correct. If rewriting, match the hero's voice and stay within 3 sentences.`,
   outputType: ReflectionOutputSchema,
   model: MODEL_FAST,
 });

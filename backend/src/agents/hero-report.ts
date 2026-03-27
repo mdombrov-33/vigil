@@ -31,8 +31,8 @@ ${incident.description}
 
 Outcome: ${outcome.toUpperCase()}
 
-Write in first person, in your voice. Reference the incident specifics. 2–4 sentences maximum — this goes in a UI card, keep it tight.
-Your mission history is context for continuity — reference past events only if it feels natural.`,
+Write in first person, in your voice. Reference the incident specifics. HARD LIMIT: 3 sentences maximum. No exceptions — this is a UI card, not a report. One sentence setup, one sentence what you did, one sentence outcome or closing thought.
+Your mission history is context for continuity — reference past events only if it adds something in one of those 3 sentences.`,
   );
 
   return result.finalOutput as HeroReport;
