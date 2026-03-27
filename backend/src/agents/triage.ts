@@ -9,16 +9,15 @@ const triageAgent = new Agent({
 Given a raw incident description, extract the structured game data that determines how this mission plays out.
 
 Rules:
-- requiredStats: pick 1–3 stats most relevant to the incident type. Weights 1–10 reflect how critical each stat is.
+- requiredStats: ONLY include the 1–3 stats that directly determine success for this specific incident. Leave all other stats OUT entirely — absence means they are irrelevant. Weights 1–10 reflect how critical each stat is.
   threat = physical force, grit = durability, presence = charisma/crowd control, edge = intelligence/tech, tempo = speed/agility
+  Examples: chemical spill on infrastructure → edge + tempo only. Armed standoff → threat + grit only. Hostage negotiation → presence + edge only. A riot → presence only. Never pad with stats that aren't the actual deciding factor.
 - slotCount: how many heroes the incident warrants (1 = minor solo job, 4 = major crisis)
 - dangerLevel: 1=minor (green), 2=standard (yellow), 3=major (red)
 - missionDuration: time heroes spend on scene in seconds. Minor ~30s, standard ~60s, major ~90–120s
 - expiryDuration: time before incident expires unresolved. Minor ~60s, standard ~120s, major ~180s
 - hasInterrupt: true for dramatic mid-mission decision points. Not every incident needs one.
-- interruptOptions: if hasInterrupt, provide 2–4 options. Exactly one must have isHeroSpecific=true — guaranteed success if the top hero was dispatched, no stat check needed, do NOT set requiredStat/requiredValue on it. All other options must have requiredStat and requiredValue. All option text must read as a plain action description — never reference "your hero", "if you sent", or any meta-game language. Same tone as the other options.
-
-Be consistent. A bank robbery with armed gunmen needs threat + grit. A hostage negotiation needs presence + edge.`,
+- interruptOptions: if hasInterrupt, provide 2–4 options. Exactly one must have isHeroSpecific=true — guaranteed success if the top hero was dispatched, no stat check needed, do NOT set requiredStat/requiredValue on it. All other options must have requiredStat and requiredValue. All option text must read as a plain action description — never reference "your hero", "if you sent", or any meta-game language. Same tone as the other options.`,
   outputType: TriageOutputSchema,
   model: MODEL_FAST,
 });
