@@ -61,6 +61,13 @@ export const TriageOutputSchema = z.object({
 });
 export type TriageOutput = z.infer<typeof TriageOutputSchema>;
 
+// NarrativePickAgent — picks the top-1 hero based on narrative/power fit
+export const NarrativePickOutputSchema = z.object({
+  heroId: z.uuid().describe("UUID of the hero whose power and background best fits this incident"),
+  reasoning: z.string().describe("Why this hero is the narrative fit — power, background, character"),
+});
+export type NarrativePickOutput = z.infer<typeof NarrativePickOutputSchema>;
+
 // HeroAgent — in-character mission report
 export const HeroReportSchema = z.object({
   report: z.string().describe("First-person in-character mission report"),

@@ -2,6 +2,7 @@ import { db, heroes, incidents, missions, missionHeroes } from "@vigil/db";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { runIncidentGeneratorAgent } from "./incident-generator.js";
 import { runTriageAgent } from "./triage.js";
+import { runNarrativePickAgent } from "./narrative-pick.js";
 import { runDispatcherAgent } from "./dispatcher.js";
 import { runHeroReportAgent } from "./hero-report.js";
 import { runReflectionAgent } from "./reflection.js";
@@ -19,11 +20,9 @@ export async function runIncidentCreationPipeline(
 ): Promise<string> {
   console.log("[incident-pipeline] starting");
 
-  const { title, description } = await runIncidentGeneratorAgent();
-  console.log(`[incident-pipeline] generated: "${title}"`);
-
-  const [triage, availableHeroes] = await Promise.all([
-    runTriageAgent(description),
+  // Fetch heroes + generate incident flavor in parallel
+  const [{ title, description }, availableHeroes] = await Promise.all([
+    runIncidentGeneratorAgent(),
     db
       .select()
       .from(heroes)
@@ -31,8 +30,18 @@ export async function runIncidentCreationPipeline(
         and(eq(heroes.availability, "available"), ne(heroes.health, "down")),
       ),
   ]);
+  console.log(`[incident-pipeline] generated: "${title}"`);
+
+  // Triage (stat analysis) + narrative pick (power/bio fit) in parallel
+  const [triage, narrativePick] = await Promise.all([
+    runTriageAgent(description),
+    runNarrativePickAgent(description, availableHeroes),
+  ]);
   console.log(
     `[incident-pipeline] triage done — danger:${triage.dangerLevel} slots:${triage.slotCount} available heroes:${availableHeroes.length}`,
+  );
+  console.log(
+    `[incident-pipeline] narrative top-1: ${availableHeroes.find((h) => h.id === narrativePick.heroId)?.alias ?? narrativePick.heroId} — ${narrativePick.reasoning}`,
   );
 
   const recommended = scoreHeroes(
@@ -41,7 +50,7 @@ export async function runIncidentCreationPipeline(
     triage.slotCount,
   );
   console.log(
-    `[incident-pipeline] recommended: ${recommended.map((h) => h.alias).join(", ")}`,
+    `[incident-pipeline] stat recommended: ${recommended.map((h) => h.alias).join(", ")}`,
   );
 
   const expiresAt = new Date(Date.now() + triage.expiryDuration * 1000);
@@ -58,7 +67,7 @@ export async function runIncidentCreationPipeline(
       expiryDuration: triage.expiryDuration,
       hasInterrupt: triage.hasInterrupt,
       interruptOptions: triage.interruptOptions ?? null,
-      topHeroId: recommended[0]?.id ?? null,
+      topHeroId: narrativePick.heroId,
       expiresAt,
     })
     .returning();
@@ -125,10 +134,24 @@ export async function runMissionPipeline(
     ),
   );
 
-  const combinedReport = polishedReports.join("\n\n---\n\n");
+  // Save per-hero reports on the junction table
+  await Promise.all(
+    polishedReports.map((report, i) =>
+      db
+        .update(missionHeroes)
+        .set({ report })
+        .where(
+          and(
+            eq(missionHeroes.missionId, mission.id),
+            eq(missionHeroes.heroId, dispatchedHeroes[i].id),
+          ),
+        ),
+    ),
+  );
+
   await db
     .update(missions)
-    .set({ outcome, report: combinedReport, completedAt: new Date() })
+    .set({ outcome, completedAt: new Date() })
     .where(eq(missions.id, mission.id));
 
   console.log(`[mission-pipeline] updating hero states`);

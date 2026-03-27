@@ -1,0 +1,1 @@
+ALTER TABLE "mission_heroes" ADD COLUMN "report" text;

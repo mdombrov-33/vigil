@@ -5,6 +5,7 @@ import { db } from "@vigil/db";
 import { sendJson } from "@/utils/response";
 import { incidentsRouter } from "@/routes/incidents";
 import { sessionsRouter } from "@/routes/sessions";
+import { heroesRouter } from "@/routes/heroes";
 import { mcpServer } from "@/agents/mcp";
 import { initTracing } from "@/tracing";
 
@@ -21,6 +22,7 @@ app.get("/api/healthz", (_req, res) => {
 
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/incidents", incidentsRouter);
+app.use("/api/heroes", heroesRouter);
 
 console.log("Running migrations...");
 await migrate(db, { migrationsFolder: "../packages/db/src/migrations" });

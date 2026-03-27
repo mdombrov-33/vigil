@@ -112,6 +112,7 @@ export const missionHeroes = pgTable(
     heroId: uuid("hero_id")
       .notNull()
       .references(() => heroes.id),
+    report: text("report"),
   },
   (t) => [primaryKey({ columns: [t.missionId, t.heroId] })],
 );

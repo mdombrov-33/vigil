@@ -31,7 +31,7 @@ ${incident.description}
 
 Outcome: ${outcome.toUpperCase()}
 
-Write in first person, in your voice. Reference the incident specifics. 2–4 paragraphs.
+Write in first person, in your voice. Reference the incident specifics. 2–4 sentences maximum — this goes in a UI card, keep it tight.
 Your mission history is context for continuity — reference past events only if it feels natural.`,
   );
 
