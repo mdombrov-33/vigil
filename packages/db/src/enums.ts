@@ -20,3 +20,10 @@ export const missionOutcomeEnum = pgEnum("mission_outcome", [
   "success",
   "failure",
 ]);
+
+export const evalVerdictEnum = pgEnum("eval_verdict", [
+  "optimal",
+  "good",
+  "suboptimal",
+  "poor",
+]);

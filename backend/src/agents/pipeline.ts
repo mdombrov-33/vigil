@@ -173,7 +173,20 @@ export async function runMissionPipeline(
   );
 
   console.log(`[mission-pipeline] running eval`);
-  await runEvalAgent(incidentId, dispatchedHeroes);
+  const evalResult = await runEvalAgent(incidentId, dispatchedHeroes);
+  console.log(
+    `[mission-pipeline] eval: ${evalResult.verdict} ${evalResult.score}/10`,
+  );
+
+  await db
+    .update(missions)
+    .set({
+      evalScore: evalResult.score,
+      evalVerdict: evalResult.verdict,
+      evalExplanation: evalResult.explanation,
+      evalPostOpNote: evalResult.postOpNote,
+    })
+    .where(eq(missions.id, mission.id));
 
   console.log(`[mission-pipeline] done — mission ${mission.id} complete`);
 }

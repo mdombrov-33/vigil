@@ -14,6 +14,7 @@ import {
   healthEnum,
   incidentStatusEnum,
   missionOutcomeEnum,
+  evalVerdictEnum,
 } from "./enums.js";
 
 // Sessions
@@ -95,6 +96,10 @@ export const missions = pgTable("missions", {
     .references(() => incidents.id),
   outcome: missionOutcomeEnum("outcome"),
   report: varchar("report", { length: 3000 }),
+  evalScore: integer("eval_score"),
+  evalVerdict: evalVerdictEnum("eval_verdict"),
+  evalExplanation: text("eval_explanation"),
+  evalPostOpNote: text("eval_post_op_note"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
 });
