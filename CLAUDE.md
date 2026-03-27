@@ -304,6 +304,38 @@ Ignoring a hard incident is a real choice — it stays on the board longer but t
 
 ---
 
+## MCP Server Architecture
+
+Separate Node.js process, same Docker Compose stack. Agents connect to it via the OpenAI Agents SDK built-in MCP client — they discover and call tools the same way they call regular tools.
+
+```
+Agent → OpenAI Agents SDK MCP client → MCP Server → Drizzle → Postgres
+```
+
+**Shared DB package via npm workspaces** — schema is defined once and imported by both backend and MCP server. Avoids duplication and keeps schema changes in sync automatically.
+
+```
+vigil/
+├── packages/
+│   └── db/              # @vigil/db — schema, enums, types, db connection
+├── backend/             # imports from @vigil/db
+├── mcp-server/          # imports from @vigil/db
+└── package.json         # workspace root
+```
+
+Both services import the same way:
+```typescript
+import { heroes, incidents } from "@vigil/db"
+```
+
+**Build order:**
+1. Set up npm workspaces + `packages/db` with shared schema
+2. Move current `backend/src/db/` into `packages/db`
+3. Update backend to import from `@vigil/db`
+4. Build MCP server importing from `@vigil/db`
+
+---
+
 ## Future (not MVP, but build toward it)
 
 - **Auth + user accounts** — sessions tied to a user, leaderboards

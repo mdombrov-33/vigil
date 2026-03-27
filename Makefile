@@ -29,10 +29,10 @@ ps:
 
 # Example: make generate name=initial_schema
 generate:
-	cd backend && npm run generate -- --name $(name)
+	cd packages/db && npx drizzle-kit generate --name $(name)
 
 migrate:
 	docker compose exec backend npm run migrate
 
 studio:
-	cd backend && npx drizzle-kit studio
+	cd packages/db && npx drizzle-kit studio

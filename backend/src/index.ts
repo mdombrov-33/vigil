@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { db } from "@/db/index";
+import { db } from "@vigil/db";
 import { sendJson } from "@/utils/response";
 
 const app = express();
@@ -14,7 +14,7 @@ app.get("/api/healthz", (_req, res) => {
 });
 
 console.log("Running migrations...");
-await migrate(db, { migrationsFolder: "src/db/migrations" });
+await migrate(db, { migrationsFolder: "../packages/db/src/migrations" });
 console.log("Migrations complete");
 
 app.listen(PORT, () => {

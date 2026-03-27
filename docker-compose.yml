@@ -18,13 +18,15 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
       target: dev
     env_file: ./backend/.env
     ports:
       - "${PORT:-3001}:3001"
     volumes:
-      - ./backend/src:/app/src
+      - ./backend/src:/app/backend/src
+      - ./packages/db/src:/app/packages/db/src
     depends_on:
       postgres:
         condition: service_healthy
