@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-03-27
+> Last updated: 2026-03-27 (updated after monorepo restructure + hero seed)
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -29,23 +29,34 @@ Web game where the player dispatches superheroes to incidents on a city map. A h
 
 ```
 vigil/
+├── packages/
+│   └── db/                  # @vigil/db — shared Drizzle schema, enums, db client, seed
+│       └── src/
+│           ├── schema.ts
+│           ├── enums.ts
+│           ├── client.ts
+│           ├── index.ts
+│           ├── migrations/
+│           └── seed/
+│               ├── heroes/  # One file per hero (alias as filename)
+│               ├── heroes.ts
+│               └── index.ts
 ├── backend/
 │   └── src/
-│       ├── agents/        # One file per agent
-│       ├── db/            # Drizzle schema + query functions (db layer)
-│       ├── routes/        # Thin route definitions only
-│       ├── handlers/      # Business logic, called by routes
-│       ├── services/      # Pure logic — outcome calc, cooldowns, scoring
-│       └── types/         # Shared TypeScript types
-├── mcp-server/            # Separate process, same Docker Compose stack
+│       ├── agents/          # One file per agent
+│       ├── routes/          # Thin route definitions only
+│       ├── handlers/        # Business logic, called by routes
+│       ├── services/        # Pure logic — outcome calc, cooldowns, scoring
+│       └── types/           # Shared TypeScript types
+├── mcp-server/              # Separate process, same Docker Compose stack
 │   └── src/
-│       └── tools/         # One file per MCP tool
+│       └── tools/           # One file per MCP tool
 ├── frontend/
 │   └── src/
-│       ├── app/           # Next.js App Router
-│       ├── components/    # Map, RosterBar, modals, LogPanel
+│       ├── app/             # Next.js App Router
+│       ├── components/      # Map, RosterBar, modals, LogPanel
 │       └── types/
-└── docker-compose.yml     # Postgres + backend + mcp-server for local dev
+└── docker-compose.yml       # Postgres + backend + mcp-server for local dev
 ```
 
 **Layering rules:**
@@ -54,6 +65,7 @@ vigil/
 - Handlers call db layer (Drizzle functions) and services
 - Services are pure logic, no db calls
 - Agents call MCP tools only — no direct db access from agent code
+- Both backend and mcp-server import schema from `@vigil/db` — schema lives in one place
 
 ---
 
@@ -191,40 +203,41 @@ Incident spawn: ~45–60s. Good decisions = roster available. Bad streak = press
 
 ## Roster
 
-| #   | Hero           | Alias      | Threat | Grit | Presence | Edge | Tempo |
-| --- | -------------- | ---------- | ------ | ---- | -------- | ---- | ----- |
-| 1   | Marcus Cole    | Ironwall   | 9      | 10   | 5        | 4    | 2     |
-| 2   | Zara Osei      | Static     | 3      | 4    | 6        | 10   | 6     |
-| 3   | Danny Kowalski | Boom       | 9      | 7    | 4        | 3    | 5     |
-| 4   | Priya Sharma   | Veil       | 2      | 4    | 10       | 8    | 4     |
-| 5   | Rex            | Rex        | 10     | 10   | 1        | 3    | 3     |
-| 6   | Felix Voss     | Fracture   | 6      | 5    | 7        | 5    | 10    |
-| 7   | Mother Agnes   | —          | 1      | 5    | 9        | 7    | 2     |
-| 8   | Kai Park       | Null       | 5      | 6    | 4        | 8    | 7     |
-| 9   | Diana Vance    | Duchess    | 8      | 6    | 5        | 9    | 6     |
-| 10  | Tommy Ruiz     | Static Jr. | 4      | 5    | 6        | 5    | 7     |
+| #   | Hero           | Alias        | Threat | Grit | Presence | Edge | Tempo |
+| --- | -------------- | ------------ | ------ | ---- | -------- | ---- | ----- |
+| 1   | Marcus Cole    | Ironwall     | 9      | 10   | 5        | 4    | 2     |
+| 2   | Zara Osei      | Static       | 3      | 4    | 6        | 10   | 6     |
+| 3   | Danny Kowalski | Boom         | 9      | 7    | 4        | 3    | 5     |
+| 4   | Priya Sharma   | Veil         | 2      | 4    | 10       | 8    | 4     |
+| 5   | Rex            | Rex          | 10     | 10   | 1        | 3    | 3     |
+| 6   | Felix Voss     | Fracture     | 6      | 5    | 7        | 5    | 10    |
+| 7   | Agnes Morrow   | Mother Agnes | 1      | 5    | 9        | 7    | 2     |
+| 8   | Kai Park       | Null         | 5      | 6    | 4        | 8    | 7     |
+| 9   | Diana Vance    | Duchess      | 8      | 6    | 5        | 9    | 6     |
 
-### Hero Profiles (for HeroAgent system prompts)
+Slot 10 is open — Tommy Ruiz (Static Jr.) was cut. Replacement TBD.
 
-**Marcus "Ironwall" Cole** — Specialist (Threat/Grit). Calm, few words, says things that matter. 20-year Nova City PD vet. Absorbs physical damage. Moral compass of the team. Best: armed situations, protecting civilians, holding the line. Worst: negotiations with influencers, anything requiring running.
+### Hero Profiles
 
-**Zara "Static" Osei** — Specialist (Edge). Talks fast, interrupts, explains things nobody asked for. Controls EM fields — jams tech, intercepts signals. 340k TikTok followers. Considers most incidents "technically solvable without physical contact." Best: cyber threats, tech-heavy robberies, anything with electronics. Worst: nature, fistfights.
+Full `personality` (HeroAgent system prompt) and `bio` (Roster/Dispatcher reasoning) live in `packages/db/src/seed/heroes/<alias>.ts`. Quick reference only here.
 
-**Danny "Boom" Kowalski** — Specialist (Threat/Grit). Genuinely kind, enthusiastic like a labrador with explosives. Films every explosion for "personal archive." Former EOD, explosion ability became internal. Insurance company hates him. Best: demolition, terrorist threats, sieges. Worst: negotiations, "please don't touch anything."
+**Marcus "Ironwall" Cole** — Threat/Grit specialist. Absorbs physical damage. Calm, minimal words, moral anchor. Former NCPD. Best: armed standoffs, civilian protection, holding ground. Worst: speed, negotiations.
 
-**Priya "Veil" Sharma** — Specialist (Presence/Edge). Professional to the point of cold. Media face of the Agency. Secretly runs anonymous podcast on supervillain psychology. Senses and subtly influences emotions within 10m — not mind control, more "remove panic." Best: hostages, public disorder, media crises. Worst: physical force, robots/drones.
+**Zara "Static" Osei** — Edge specialist. Controls EM fields — jams comms, fries electronics, intercepts signals. Talks fast, already three steps ahead. 340k followers. Best: cyber/tech incidents. Worst: anything physical.
 
-**Rex** — Specialist (Threat/Grit, extreme). Unexpectedly gentle, slightly anxious. Worried people fear him. Types "good morning everyone 🌸" daily. Watches cooking shows. 7-meter anthropomorphic lizard in XXXXXL Agency vest. Origin classified. Forgets how large he is at inconvenient moments. Best: large-scale threats, mass riots, monsters. Worst: indoors, anything requiring subtlety, media appearances.
+**Danny "Boom" Kowalski** — Threat/Grit specialist. Internal explosive force generation. Genuinely kind, chaotically enthusiastic. Former EOD. Films every explosion. Best: demolition, sieges, high-threat. Worst: negotiations, precision work.
 
-**Felix "Fracture" Voss** — Specialist (Tempo). Functional narcissist — very fast, very good, entirely aware of it. 2.1M followers. Controls local inertia: instant acceleration, direction change, kinetic transfer. Recruited at 19, hasn't matured since. Best: chases, evacuations, anything timed. Worst: sieges, patience, teamwork.
+**Priya "Veil" Sharma** — Presence/Edge specialist. Senses and subtly modulates emotions within 10m — not mind control, de-escalation. Agency media face. Runs anonymous psych podcast. Best: hostages, public disorder, media crises. Worst: physical force, robots.
 
-**Mother Agnes** — Specialist (Presence/Edge). Elderly, quiet, never raises her voice — somehow more frightening than yelling. Generates psychological pressure field ("conscience"). Accelerates ally biological recovery. Former schoolteacher. Came to Agency herself. Nobody dared refuse. Best: civilian work, youth incidents, anything requiring voluntary compliance. Worst: physical threats, robots, speed.
+**Rex** — Threat/Grit extreme. 7-meter anthropomorphic, origin classified. Unexpectedly gentle, anxious about being frightening. Sends "good morning everyone 🌸" daily. Forgets his own size. Best: mass threats, monsters, overwhelming presence. Worst: indoors, subtlety.
 
-**Kai "Null" Park** — All-rounder (Edge/Tempo lean). Talks little, observes much. Can say something precise then be silent for an hour. No social media. Neutralizes superpowers via contact. Agency's secret weapon against enhanced threats. Best: enhanced opponents, neutralization missions. Worst: ordinary crimes (ability irrelevant), mass events, publicity.
+**Felix "Fracture" Voss** — Tempo specialist. Controls local inertia — instant acceleration, stops, kinetic transfer. 2.1M followers. Functional narcissist, genuinely excellent. Recruited at 19, still acts like it. Best: chases, evacuations, timed extractions. Worst: waiting, teamwork.
 
-**Diana "Duchess" Vance** — All-rounder (Edge/Threat lean). Perfectionist with dry black humor she never announces. Plans everything. Physical pain when plans change mid-mission. Keeps secret efficiency spreadsheet on all colleagues. Former military sniper. Precision perception — sees trajectories, calculates physical outcomes, never misses. Best: precision ops, sniper threats, complex multi-stage situations. Worst: chaotic events, unpredictable situations, working with Rex.
+**Agnes Morrow "Mother Agnes"** — Presence/Edge specialist. Passive psychological pressure field — makes self-deception difficult. Accelerates ally recovery. Former schoolteacher, 31 years. Walked in and told the Agency she was joining. Best: civilian work, youth incidents, voluntary compliance. Worst: physical threats, speed.
 
-**Tommy "Static Jr." Ruiz** — All-rounder (weak). Genuine enthusiast in a room of cynics. Knew every agent's stats before joining. Tries so hard to help that he sometimes gets in the way. Unstable telekinesis — sometimes perfect, sometimes nothing, once accidentally lifted the Agency van. On probationary period. Felix ignores him. Mother Agnes bakes him separate cookies. Best: supporting experienced agents, low-pressure incidents. Worst: high-threat incidents, anything where unstable ability is dangerous, media.
+**Kai "Null" Park** — Edge/Tempo all-rounder. Suppresses enhanced abilities on physical contact. Talks little, observes everything. No social media. Best: enhanced opponents, neutralization. Worst: ordinary crimes, mass events.
+
+**Diana "Duchess" Vance** — Edge/Threat all-rounder. Former military sniper. Perceives trajectories in real time — never misses. Perfectionist. Dry black humor, never announced. Maintains encrypted agent efficiency spreadsheet. Best: precision ops, sniper threats, complex staging. Worst: chaos, Rex.
 
 ---
 
@@ -306,33 +319,27 @@ Ignoring a hard incident is a real choice — it stays on the board longer but t
 
 ## MCP Server Architecture
 
-Separate Node.js process, same Docker Compose stack. Agents connect to it via the OpenAI Agents SDK built-in MCP client — they discover and call tools the same way they call regular tools.
+Separate Node.js + TypeScript process in `mcp-server/`, same Docker Compose stack. Runs on port **3002**. Agents connect to it over HTTP using the OpenAI Agents SDK's built-in MCP client.
 
 ```
-Agent → OpenAI Agents SDK MCP client → MCP Server → Drizzle → Postgres
+Agent (backend) → MCPServerStreamableHttp → mcp-server:3002 → Drizzle → Postgres
 ```
 
-**Shared DB package via npm workspaces** — schema is defined once and imported by both backend and MCP server. Avoids duplication and keeps schema changes in sync automatically.
+**Libraries:**
 
-```
-vigil/
-├── packages/
-│   └── db/              # @vigil/db — schema, enums, types, db connection
-├── backend/             # imports from @vigil/db
-├── mcp-server/          # imports from @vigil/db
-└── package.json         # workspace root
-```
+- MCP server: `@modelcontextprotocol/sdk` — official MCP TypeScript SDK, handles tool registration and HTTP transport
+- Agent connection: `MCPServerStreamableHttp` from `@openai/agents` — agents discover and call MCP tools the same way they call any other tool, no special handling needed
 
-Both services import the same way:
+**Transport: Streamable HTTP** — MCP server exposes a single HTTP endpoint. Agents point at `http://mcp-server:3002/mcp`. Works cleanly in Docker Compose since each service has its own hostname.
+
+**Shared schema:** Both backend and mcp-server import from `@vigil/db` (npm workspace). Schema lives in one place, both services stay in sync automatically.
+
 ```typescript
-import { heroes, incidents } from "@vigil/db"
+// Both services import the same way
+import { heroes, incidents } from "@vigil/db";
 ```
 
-**Build order:**
-1. Set up npm workspaces + `packages/db` with shared schema
-2. Move current `backend/src/db/` into `packages/db`
-3. Update backend to import from `@vigil/db`
-4. Build MCP server importing from `@vigil/db`
+**Each MCP tool** lives in its own file under `mcp-server/src/tools/`. The main `mcp-server/src/index.ts` registers all tools and starts the HTTP server.
 
 ---
 
