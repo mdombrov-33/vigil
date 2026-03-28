@@ -7,6 +7,41 @@ import {
   runMissionPipeline,
 } from "@/agents/pipeline";
 
+// GET /api/incidents?sessionId=xxx
+// Returns active incidents for the map — pending, en_route, active only.
+export async function getActiveIncidents(req: Request, res: Response) {
+  const sessionId = req.query.sessionId as string;
+  if (!sessionId) {
+    sendJson(res, 400, { error: "sessionId is required" });
+    return;
+  }
+
+  const rows = await db
+    .select()
+    .from(incidents)
+    .where(
+      and(
+        eq(incidents.sessionId, sessionId),
+        inArray(incidents.status, ["pending", "en_route", "active"]),
+      ),
+    );
+
+  // Only send what the frontend needs — keep required_stats hidden
+  const mapped = rows.map((i) => ({
+    incidentId: i.id,
+    title: i.title,
+    description: i.description,
+    slotCount: i.slotCount,
+    dangerLevel: i.dangerLevel,
+    hasInterrupt: i.hasInterrupt,
+    status: i.status,
+    expiresAt: i.expiresAt,
+    createdAt: i.createdAt,
+  }));
+
+  sendJson(res, 200, mapped);
+}
+
 // POST /api/incidents/generate
 // Runs the full incident creation pipeline — generator + triage + dispatcher.
 // Awaited before returning so the pin appears analysis-complete.
