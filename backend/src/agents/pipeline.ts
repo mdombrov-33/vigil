@@ -12,6 +12,7 @@ import {
   getCooldownUntil,
   rollHealthAfterFailure,
 } from "@/services/cooldown.js";
+import { send, log } from "@/sse/manager.js";
 import type { RequiredStats } from "@/types";
 
 // Incident Creation Pipeline
@@ -19,6 +20,7 @@ export async function runIncidentCreationPipeline(
   sessionId: string,
 ): Promise<string> {
   console.log("[incident-pipeline] starting");
+  log(sessionId, "Analyzing incoming incident...");
 
   // Fetch heroes + generate incident flavor in parallel
   const [{ title, description }, availableHeroes] = await Promise.all([
@@ -31,17 +33,23 @@ export async function runIncidentCreationPipeline(
       ),
   ]);
   console.log(`[incident-pipeline] generated: "${title}"`);
+  log(sessionId, `Incident detected: ${title}`);
 
   // Triage (stat analysis) + narrative pick (power/bio fit) in parallel
   const [triage, narrativePick] = await Promise.all([
     runTriageAgent(description),
     runNarrativePickAgent(description, availableHeroes),
   ]);
+  const narrativeHero = availableHeroes.find((h) => h.id === narrativePick.heroId);
   console.log(
     `[incident-pipeline] triage done — danger:${triage.dangerLevel} slots:${triage.slotCount} available heroes:${availableHeroes.length}`,
   );
   console.log(
-    `[incident-pipeline] narrative top-1: ${availableHeroes.find((h) => h.id === narrativePick.heroId)?.alias ?? narrativePick.heroId} — ${narrativePick.reasoning}`,
+    `[incident-pipeline] narrative top-1: ${narrativeHero?.alias ?? narrativePick.heroId} — ${narrativePick.reasoning}`,
+  );
+  log(
+    sessionId,
+    `Triage complete — danger level ${triage.dangerLevel}/3, ${triage.slotCount} slot${triage.slotCount > 1 ? "s" : ""}`,
   );
 
   const recommended = scoreHeroes(
@@ -52,6 +60,7 @@ export async function runIncidentCreationPipeline(
   console.log(
     `[incident-pipeline] stat recommended: ${recommended.map((h) => h.alias).join(", ")}`,
   );
+  log(sessionId, `SDN recommendation: ${recommended.map((h) => h.alias).join(", ")}`);
 
   const expiresAt = new Date(Date.now() + triage.expiryDuration * 1000);
   const [incident] = await db
@@ -76,6 +85,17 @@ export async function runIncidentCreationPipeline(
   await runDispatcherAgent(incident.id, recommended, triage, description);
   console.log(`[incident-pipeline] recommendation stored`);
 
+  // Incident is fully analyzed — push pin to map
+  send(sessionId, "incident:new", {
+    incidentId: incident.id,
+    title: incident.title,
+    description: incident.description,
+    slotCount: incident.slotCount,
+    dangerLevel: incident.dangerLevel,
+    hasInterrupt: incident.hasInterrupt,
+    expiresAt: incident.expiresAt,
+  });
+
   console.log(`[incident-pipeline] done — incident ${incident.id} ready`);
   return incident.id;
 }
@@ -98,6 +118,8 @@ export async function runMissionPipeline(
   const incident = incidentRows[0];
   if (!incident) throw new Error(`Incident ${incidentId} not found`);
 
+  const sessionId = incident.sessionId;
+
   const [mission] = await db
     .insert(missions)
     .values({ incidentId })
@@ -108,12 +130,14 @@ export async function runMissionPipeline(
     .values(heroIds.map((heroId) => ({ missionId: mission.id, heroId })));
 
   console.log(`[mission-pipeline] mission created: ${mission.id}`);
+  log(sessionId, `${dispatchedHeroes.map((h) => h.alias).join(" + ")} en route to: ${incident.title}`);
 
   const outcome = getMissionOutcome(
     dispatchedHeroes,
     incident.requiredStats as RequiredStats,
   );
   console.log(`[mission-pipeline] outcome: ${outcome}`);
+  log(sessionId, `Mission outcome: ${outcome.toUpperCase()}`);
 
   console.log(
     `[mission-pipeline] generating reports for: ${dispatchedHeroes.map((h) => h.alias).join(", ")}`,
@@ -156,7 +180,7 @@ export async function runMissionPipeline(
 
   console.log(`[mission-pipeline] updating hero states`);
   await Promise.all(
-    dispatchedHeroes.map((hero) => {
+    dispatchedHeroes.map(async (hero) => {
       const newHealth =
         outcome === "failure"
           ? rollHealthAfterFailure(hero.health)
@@ -165,10 +189,18 @@ export async function runMissionPipeline(
       console.log(
         `[mission-pipeline] ${hero.alias} → ${newHealth}, cooldown: ${cooldownUntil?.toISOString() ?? "permanent"}`,
       );
-      return db
+      await db
         .update(heroes)
         .set({ availability: "resting", health: newHealth, cooldownUntil })
         .where(eq(heroes.id, hero.id));
+
+      send(sessionId, "hero:state_update", {
+        heroId: hero.id,
+        alias: hero.alias,
+        availability: "resting",
+        health: newHealth,
+        cooldownUntil: cooldownUntil?.toISOString() ?? null,
+      });
     }),
   );
 
@@ -187,6 +219,18 @@ export async function runMissionPipeline(
       evalPostOpNote: evalResult.postOpNote,
     })
     .where(eq(missions.id, mission.id));
+
+  // Push completed mission to frontend
+  send(sessionId, "mission:outcome", {
+    incidentId,
+    missionId: mission.id,
+    outcome,
+    heroes: dispatchedHeroes.map((h) => h.alias),
+    evalScore: evalResult.score,
+    evalVerdict: evalResult.verdict,
+    evalPostOpNote: evalResult.postOpNote,
+  });
+  log(sessionId, `Eval: ${evalResult.score}/10 ${evalResult.verdict} — ${evalResult.postOpNote}`);
 
   console.log(`[mission-pipeline] done — mission ${mission.id} complete`);
 }

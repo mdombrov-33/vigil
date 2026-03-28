@@ -6,8 +6,10 @@ import { sendJson } from "@/utils/response";
 import { incidentsRouter } from "@/routes/incidents";
 import { sessionsRouter } from "@/routes/sessions";
 import { heroesRouter } from "@/routes/heroes";
+import sseRouter from "@/routes/sse";
 import { mcpServer } from "@/agents/mcp";
 import { initTracing } from "@/tracing";
+import { startCooldownResolver } from "@/services/cooldown-resolver";
 
 initTracing();
 
@@ -23,6 +25,7 @@ app.get("/api/healthz", (_req, res) => {
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/incidents", incidentsRouter);
 app.use("/api/heroes", heroesRouter);
+app.use("/api/sse", sseRouter);
 
 console.log("Running migrations...");
 await migrate(db, { migrationsFolder: "../packages/db/src/migrations" });
@@ -30,6 +33,9 @@ console.log("Migrations complete");
 
 await mcpServer.connect();
 console.log("MCP server connected");
+
+startCooldownResolver();
+console.log("Cooldown resolver started");
 
 app.listen(PORT, () => {
   console.log(`Vigil backend running on http://localhost:${PORT}`);
