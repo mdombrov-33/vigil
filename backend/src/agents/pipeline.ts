@@ -7,13 +7,14 @@ import { runDispatcherAgent } from "./dispatcher.js";
 import { runHeroReportAgent } from "./hero-report.js";
 import { runReflectionAgent } from "./reflection.js";
 import { runEvalAgent } from "./eval.js";
-import { scoreHeroes, getMissionOutcome } from "@/services/outcome.js";
+import { scoreHeroes, getMissionOutcome, getInterruptOutcome, type InterruptOption } from "@/services/outcome.js";
 import {
   getCooldownUntil,
   rollHealthAfterFailure,
 } from "@/services/cooldown.js";
 import { send, log } from "@/sse/manager.js";
 import { dockCityHealth, addScore } from "@/services/city-health.js";
+import { waitForChoice } from "@/services/interrupt-gate.js";
 import type { RequiredStats } from "@/types";
 
 const TRAVEL_TIME_MS = 12_000;
@@ -145,12 +146,54 @@ export async function runMissionPipeline(
   log(sessionId, `${dispatchedHeroes.map((h) => h.alias).join(" + ")} on scene`);
 
   // Mission in progress
-  await sleep(incident.missionDuration * 1000);
+  const halfMs = (incident.missionDuration * 1000) / 2;
+  let outcome: "success" | "failure";
 
-  const outcome = getMissionOutcome(
-    dispatchedHeroes,
-    incident.requiredStats as RequiredStats,
-  );
+  if (incident.hasInterrupt && incident.interruptOptions) {
+    const options = incident.interruptOptions as InterruptOption[];
+
+    // Wait first half, then surface the interrupt
+    await sleep(halfMs);
+
+    send(sessionId, "mission:interrupt", {
+      incidentId,
+      missionId: mission.id,
+      topHeroId: incident.topHeroId,
+      options: options.map((o) => ({
+        id: o.id,
+        text: o.text,
+        isHeroSpecific: o.isHeroSpecific,
+      })),
+    });
+    log(sessionId, `Interrupt triggered — awaiting player decision`);
+
+    // Wait for player choice — timeout after the remaining half
+    const choiceId = await waitForChoice(mission.id, halfMs);
+
+    if (choiceId === null) {
+      // Player ignored the interrupt — auto-fail
+      outcome = "failure";
+      log(sessionId, `Interrupt ignored — mission failed`);
+    } else {
+      const chosen = options.find((o) => o.id === choiceId)!;
+      outcome = getInterruptOutcome(chosen, dispatchedHeroes, incident.topHeroId);
+      log(sessionId, `Interrupt resolved: "${chosen.text}" → ${outcome.toUpperCase()}`);
+
+      // Reveal full options with stat info now that player has chosen
+      send(sessionId, "mission:interrupt:resolved", {
+        incidentId,
+        missionId: mission.id,
+        chosenOptionId: choiceId,
+        options, // full options including requiredStat/requiredValue
+      });
+    }
+  } else {
+    await sleep(incident.missionDuration * 1000);
+    outcome = getMissionOutcome(
+      dispatchedHeroes,
+      incident.requiredStats as RequiredStats,
+    );
+  }
   console.log(`[mission-pipeline] outcome: ${outcome}`);
   log(sessionId, `Mission outcome: ${outcome.toUpperCase()}`);
 

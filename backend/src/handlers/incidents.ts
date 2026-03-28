@@ -1,11 +1,13 @@
 import { Request, Response } from "express";
-import { db, heroes, incidents } from "@vigil/db";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { db, heroes, incidents, missions } from "@vigil/db";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { sendJson } from "@/utils/response";
 import {
   runIncidentCreationPipeline,
   runMissionPipeline,
 } from "@/agents/pipeline";
+import { resolveChoice } from "@/services/interrupt-gate";
+import type { InterruptOption } from "@/services/outcome";
 
 // GET /api/incidents?sessionId=xxx
 // Returns active incidents for the map — pending, en_route, active only.
@@ -130,4 +132,84 @@ export async function dispatchHeroes(req: Request, res: Response) {
     status: "en_route",
     heroes: dispatchedHeroes.map((h) => ({ id: h.id, alias: h.alias })),
   });
+}
+
+// POST /api/incidents/:id/interrupt
+// Player submits their interrupt choice.
+export async function submitInterruptChoice(req: Request, res: Response) {
+  const incidentId = req.params.id as string;
+  const { choiceId } = req.body as { choiceId: string };
+
+  if (!choiceId) {
+    sendJson(res, 400, { error: "choiceId is required" });
+    return;
+  }
+
+  // Fetch incident to validate the choice
+  const [incident] = await db
+    .select()
+    .from(incidents)
+    .where(eq(incidents.id, incidentId))
+    .limit(1);
+
+  if (!incident) {
+    sendJson(res, 404, { error: "Incident not found" });
+    return;
+  }
+
+  if (incident.status !== "active") {
+    sendJson(res, 409, { error: "Incident is not in an active interrupt state" });
+    return;
+  }
+
+  const options = (incident.interruptOptions ?? []) as InterruptOption[];
+  const chosen = options.find((o) => o.id === choiceId);
+
+  if (!chosen) {
+    sendJson(res, 400, { error: "Invalid choiceId" });
+    return;
+  }
+
+  // Reject if player tries to submit hero-specific option without the top hero
+  if (chosen.isHeroSpecific) {
+    const [mission] = await db
+      .select()
+      .from(missions)
+      .where(and(eq(missions.incidentId, incidentId), isNull(missions.completedAt)))
+      .limit(1);
+
+    if (mission) {
+      const heroRows = await db
+        .select({ heroId: missions.incidentId })
+        .from(missions)
+        .where(eq(missions.id, mission.id));
+
+      const topHeroDispatched = heroRows.some(() => incident.topHeroId);
+
+      if (!topHeroDispatched) {
+        sendJson(res, 400, { error: "Top hero was not dispatched — this option is unavailable" });
+        return;
+      }
+    }
+  }
+
+  // Find the active mission to resolve the gate
+  const [activeMission] = await db
+    .select()
+    .from(missions)
+    .where(and(eq(missions.incidentId, incidentId), isNull(missions.completedAt)))
+    .limit(1);
+
+  if (!activeMission) {
+    sendJson(res, 404, { error: "No active mission found for this incident" });
+    return;
+  }
+
+  const resolved = resolveChoice(activeMission.id, choiceId);
+  if (!resolved) {
+    sendJson(res, 409, { error: "No pending interrupt for this mission" });
+    return;
+  }
+
+  sendJson(res, 200, { ok: true, choiceId });
 }

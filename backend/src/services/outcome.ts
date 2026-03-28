@@ -1,6 +1,28 @@
 import type { Hero } from "@vigil/db";
 import type { RequiredStats, Stat, StatMap } from "@/types";
 
+export type InterruptOption = {
+  id: string;
+  text: string;
+  isHeroSpecific: boolean;
+  requiredStat?: Stat;
+  requiredValue?: number;
+};
+
+export function getInterruptOutcome(
+  option: InterruptOption,
+  heroes: Hero[],
+  topHeroId: string | null,
+): "success" | "failure" {
+  if (option.isHeroSpecific) {
+    return heroes.some((h) => h.id === topHeroId) ? "success" : "failure";
+  }
+  const combined = combineStats(heroes);
+  return combined[option.requiredStat!] >= option.requiredValue!
+    ? "success"
+    : "failure";
+}
+
 export function combineStats(heroes: Hero[]): StatMap {
   return heroes.reduce(
     (acc, hero) => ({
