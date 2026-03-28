@@ -10,6 +10,7 @@ import sseRouter from "@/routes/sse";
 import { mcpServer } from "@/agents/mcp";
 import { initTracing } from "@/tracing";
 import { startCooldownResolver } from "@/services/cooldown-resolver";
+import { startGameLoop } from "@/services/game-loop";
 
 initTracing();
 
@@ -36,6 +37,9 @@ console.log("MCP server connected");
 
 startCooldownResolver();
 console.log("Cooldown resolver started");
+
+startGameLoop();
+console.log("Game loop started");
 
 app.listen(PORT, () => {
   console.log(`Vigil backend running on http://localhost:${PORT}`);

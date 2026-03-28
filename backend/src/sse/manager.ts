@@ -29,3 +29,7 @@ export function broadcast(event: string, data: unknown) {
 export function log(sessionId: string, message: string) {
   send(sessionId, "log", { message });
 }
+
+export function getActiveSessions(): string[] {
+  return Array.from(connections.keys());
+}

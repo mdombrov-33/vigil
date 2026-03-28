@@ -13,7 +13,11 @@ import {
   rollHealthAfterFailure,
 } from "@/services/cooldown.js";
 import { send, log } from "@/sse/manager.js";
+import { dockCityHealth, addScore } from "@/services/city-health.js";
 import type { RequiredStats } from "@/types";
+
+const TRAVEL_TIME_MS = 12_000;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Incident Creation Pipeline
 export async function runIncidentCreationPipeline(
@@ -132,12 +136,32 @@ export async function runMissionPipeline(
   console.log(`[mission-pipeline] mission created: ${mission.id}`);
   log(sessionId, `${dispatchedHeroes.map((h) => h.alias).join(" + ")} en route to: ${incident.title}`);
 
+  // Travel to incident
+  await sleep(TRAVEL_TIME_MS);
+  await db
+    .update(incidents)
+    .set({ status: "active" })
+    .where(eq(incidents.id, incidentId));
+  log(sessionId, `${dispatchedHeroes.map((h) => h.alias).join(" + ")} on scene`);
+
+  // Mission in progress
+  await sleep(incident.missionDuration * 1000);
+
   const outcome = getMissionOutcome(
     dispatchedHeroes,
     incident.requiredStats as RequiredStats,
   );
   console.log(`[mission-pipeline] outcome: ${outcome}`);
   log(sessionId, `Mission outcome: ${outcome.toUpperCase()}`);
+
+  if (outcome === "failure") {
+    await dockCityHealth(sessionId, 10, `mission failed: ${incident.title}`);
+  }
+
+  await db
+    .update(incidents)
+    .set({ status: "completed" })
+    .where(eq(incidents.id, incidentId));
 
   console.log(
     `[mission-pipeline] generating reports for: ${dispatchedHeroes.map((h) => h.alias).join(", ")}`,
@@ -219,6 +243,10 @@ export async function runMissionPipeline(
       evalPostOpNote: evalResult.postOpNote,
     })
     .where(eq(missions.id, mission.id));
+
+  if (outcome === "success") {
+    await addScore(sessionId, evalResult.verdict);
+  }
 
   // Push completed mission to frontend
   send(sessionId, "mission:outcome", {
