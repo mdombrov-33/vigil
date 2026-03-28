@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-03-27 (updated after monorepo restructure + hero seed)
+> Last updated: 2026-03-28 (backend complete)
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -8,20 +8,20 @@ Web game where the player dispatches superheroes to incidents on a city map. A h
 
 ## Stack
 
-| Layer             | Tech                                                 |
-| ----------------- | ---------------------------------------------------- |
-| Backend           | Node.js + TypeScript (Express)                       |
-| Frontend          | Next.js (TypeScript)                                 |
-| Agents            | OpenAI Agents SDK (TypeScript)                       |
-| Schema validation | Zod + `zodResponseFormat`                            |
-| ORM               | Drizzle ORM                                          |
-| Database          | PostgreSQL                                           |
-| MCP Server        | Custom service (separate process, same Docker stack) |
-| Streaming         | SSE via backend route handler                        |
-| Observability     | OpenAI Agents SDK built-in traces; Langfuse optional |
-| Env validation    | t3-env or Zod                                        |
-| Deploy            | AWS (backend + MCP + RDS), Vercel (frontend)         |
-| Local dev         | Docker Compose                                       |
+| Layer         | Tech                                                    |
+| ------------- | ------------------------------------------------------- |
+| Backend       | Node.js + TypeScript (Express)                          |
+| Frontend      | Next.js (TypeScript)                                    |
+| Agents        | OpenAI Agents SDK (`@openai/agents`)                    |
+| Models        | `gpt-5.4` (player-facing) / `gpt-5.4-mini` (mechanical) |
+| Schema        | Zod structured output                                   |
+| ORM           | Drizzle ORM                                             |
+| Database      | PostgreSQL                                              |
+| MCP Server    | Custom Node.js process, same Docker stack, port 3002    |
+| Realtime      | SSE — one persistent connection per session             |
+| Observability | OpenAI Agents SDK built-in traces                       |
+| Deploy        | AWS (backend + MCP + RDS), Vercel (frontend)            |
+| Local dev     | Docker Compose                                          |
 
 ---
 
@@ -30,7 +30,7 @@ Web game where the player dispatches superheroes to incidents on a city map. A h
 ```
 vigil/
 ├── packages/
-│   └── db/                  # @vigil/db — shared Drizzle schema, enums, db client, seed
+│   └── db/                        # @vigil/db — shared schema, enums, client, seed
 │       └── src/
 │           ├── schema.ts
 │           ├── enums.ts
@@ -38,144 +38,213 @@ vigil/
 │           ├── index.ts
 │           ├── migrations/
 │           └── seed/
-│               ├── heroes/  # One file per hero (alias as filename)
+│               ├── heroes/        # One file per hero (alias as filename)
 │               ├── heroes.ts
 │               └── index.ts
 ├── backend/
 │   └── src/
-│       ├── agents/          # One file per agent
-│       ├── routes/          # Thin route definitions only
-│       ├── handlers/        # Business logic, called by routes
-│       ├── services/        # Pure logic — outcome calc, cooldowns, scoring
-│       └── types/           # Shared TypeScript types
-├── mcp-server/              # Separate process, same Docker Compose stack
+│       ├── agents/                # One file per agent + pipeline.ts + mcp.ts + models.ts + schemas.ts
+│       ├── routes/                # Thin Express routers only
+│       ├── handlers/              # Business logic called by routes
+│       ├── services/              # Pure logic — outcome, cooldowns, scoring, city health, game loop
+│       ├── sse/                   # SSE manager (connection registry + send/broadcast)
+│       ├── tracing.ts
+│       └── types/
+├── mcp-server/
 │   └── src/
-│       └── tools/           # One file per MCP tool
+│       ├── tools/                 # One file per MCP tool
+│       ├── handlers/              # DB logic called by tools
+│       └── index.ts               # McpServer created per-request (not shared instance)
 ├── frontend/
 │   └── src/
-│       ├── app/             # Next.js App Router
-│       ├── components/      # Map, RosterBar, modals, LogPanel
+│       ├── app/
+│       ├── components/
 │       └── types/
-└── docker-compose.yml       # Postgres + backend + mcp-server for local dev
+└── docker-compose.yml
 ```
 
 **Layering rules:**
 
 - `route → handler → service / db` — routes are thin wiring only
-- Handlers call db layer (Drizzle functions) and services
-- Services are pure logic, no db calls
-- Agents call MCP tools only — no direct db access from agent code
-- Both backend and mcp-server import schema from `@vigil/db` — schema lives in one place
+- Services are pure logic — no DB calls except `city-health.ts` and `game-loop.ts` which coordinate cross-cutting concerns
+- Agents are orchestrated by `pipeline.ts` — no agent calls another agent directly
+- MCP server: `tool → handler → db` — same layering, tools never touch DB directly
 
 ---
 
 ## Agents
 
-| Agent                      | Role                                                                                                                                                                                                                                                                                       | Patterns                 |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ |
-| **TriageAgent**            | Raw incident → structured: threat type, required stats, danger level, hero slots (1–4)                                                                                                                                                                                                     | Structured output (Zod)  |
-| **RosterAgent**            | Fetches available heroes via MCP, returns profiles                                                                                                                                                                                                                                         | Tool use                 |
-| **DispatcherAgent**        | Orchestrator. Triage + Roster → deterministic scoring (code) → stores hidden recommendation                                                                                                                                                                                                | Planning, routing        |
-| **HeroAgent**              | One agent class, instantiated per hero with that hero's system prompt (personality, voice). Receives code-determined outcome + mission context + last 5 own missions → writes first-person report in character. Marcus and Zara produce completely different reports for the same outcome. | Memory (last 5 missions) |
-| **ReflectionAgent**        | Evaluates HeroAgent report, rewrites if low quality. Max 2 iterations                                                                                                                                                                                                                      | Reflection loop          |
-| **EvalAgent**              | Reveals hidden recommendation, compares to player choice, scores and explains                                                                                                                                                                                                              | Evaluation               |
-| **IncidentGeneratorAgent** | Generates new incidents dynamically — title, description, required stats (internal), slot count, interrupt options                                                                                                                                                                         | Structured output        |
+| Agent                      | Model | MCP | Role                                                                                                                          |
+| -------------------------- | ----- | --- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **IncidentGeneratorAgent** | fast  | no  | Generates incident title + description (flavor only). No game mechanics.                                                      |
+| **TriageAgent**            | fast  | no  | Extracts required stats (1–3 only), slot count, danger level, timing, interrupt options from description.                     |
+| **NarrativePickAgent**     | full  | no  | Picks `topHeroId` based on hero bio/powers/character fit — not stats. Used for interrupt hero-specific option.                |
+| **DispatcherAgent**        | fast  | yes | Stores hidden stat-based recommendation via `save_dispatch_recommendation`.                                                   |
+| **HeroReportAgent**        | full  | yes | One instance per hero, personality as system prompt. Calls `get_hero_mission_history`, writes 3-sentence first-person report. |
+| **ReflectionAgent**        | fast  | no  | Reviews hero report — rejects only for wrong voice, generic content, or outcome mismatch. Max 2 iterations.                   |
+| **EvalAgent**              | full  | yes | Calls `get_dispatch_recommendation`, compares to player dispatch, scores 0–10, outputs verdict + postOpNote.                  |
 
-**Incident pipeline order:** IncidentGeneratorAgent creates the incident → TriageAgent + RosterAgent run via `Promise.all` → DispatcherAgent forms hidden recommendation → **only then** the incident pin appears on the map. By the time the player sees it, analysis is complete.
+**Two separate hero rankings:**
 
----
-
-## MCP Server — SDN Database
-
-All agents interact with state via MCP tools only. No direct db access from agent code.
-
-| Tool                           | Description                                            |
-| ------------------------------ | ------------------------------------------------------ |
-| `get_available_heroes`         | availability = `available` AND health ≠ `down`         |
-| `get_hero_profile`             | Full profile: stats, personality, bio                  |
-| `get_hero_mission_history`     | Last 5 missions (memory context for HeroAgent)         |
-| `update_hero_state`            | Updates availability + health + cooldown after mission |
-| `save_mission_report`          | Persists completed mission report                      |
-| `save_dispatch_recommendation` | Stores DispatcherAgent hidden recommendation           |
-| `get_dispatch_recommendation`  | Retrieves hidden recommendation for EvalAgent          |
+- **Stat-based** (`scoreHeroes`) → dispatcher recommendation, eval grading
+- **Narrative-based** (`NarrativePickAgent`) → `topHeroId` on incident, unlocks hero-specific interrupt option
 
 ---
 
-## Gameplay Loop
+## Pipelines
+
+### Incident Creation Pipeline (`runIncidentCreationPipeline`)
 
 ```
-IncidentGeneratorAgent generates incident:
-  title, description (flavor only), required stats (internal), slot count,
-  interrupt options (if any), mission duration (30 / 60 / 90–120s based on severity)
-→ TriageAgent reads description → extracts: required stats, slot count, danger level (all internal)
-→ RosterAgent fetches available heroes via MCP
-  (TriageAgent + RosterAgent run in parallel)
-→ DispatcherAgent scores heroes, stores hidden recommendation via MCP
-→ Incident pin appears on the map (full pipeline already done)
+1. IncidentGeneratorAgent + fetch available heroes   [parallel]
+2. TriageAgent + NarrativePickAgent                  [parallel]
+3. scoreHeroes() — deterministic stat ranking        [pure code]
+4. INSERT incident → DB
+5. DispatcherAgent → save_dispatch_recommendation
+6. SSE: incident:new → pin appears on map
+```
 
-New incidents spawn on a fixed timer (~45–60s).
-Max ~4 active unresolved incidents on the map at once.
-No artificial throttling based on hero availability — if the player burned their roster,
-that's the consequence. Incidents pile up, city takes damage, that's the game.
+### Mission Pipeline (`runMissionPipeline`)
 
-Player clicks incident pin → modal opens
-→ sees: description (text only — no stat list, no danger level number)
-→ sees: hero slots (1–4 max)
-→ selects heroes, clicks DISPATCH
-→ heroes status → on_mission for the incident's duration
+```
+1. Fetch incident + heroes from DB
+2. INSERT mission + missionHeroes
+3. SSE: log "en route"
+4. sleep(12s) — travel time
+5. UPDATE incident status → active
+6. SSE: log "on scene"
 
 TYPE 1 — No interrupt:
-  Heroes locked for mission duration
-  On completion: code calculates outcome via coverage formula
-  Mission report generated, eval runs, heroes enter cooldown
+  7a. sleep(missionDuration)
+  7b. getMissionOutcome() — quadratic coverage formula
 
 TYPE 2 — Interrupt:
-  Partway through mission duration → pipeline pauses → interrupt modal shown
-  All 2–4 text options visible (no stat icons yet)
-  Hero-specific option always rendered — greyed out + unselectable if that hero wasn't sent
-  (player sees what they missed — intentional feedback loop)
-  If player sent top-1 hero → hero-specific option selectable → guaranteed success
-  Player picks option → stat icons revealed on all options after choice
-  Outcome calculated from chosen option's stat vs hero's value in that stat
+  7a. sleep(missionDuration / 2)
+  7b. SSE: mission:interrupt — options with text only, no stat info, topHeroId included
+  7c. waitForChoice(missionId, remainingMs) — in-memory promise, player POSTs choice
+  7d. If timeout → auto-fail
+  7e. getInterruptOutcome() — stat check or hero-specific check
 
-HeroAgent generates combined in-character report matching the outcome (flavor text)
-ReflectionAgent polishes report (max 2 iterations, hidden from player)
-EvalAgent reveals hidden recommendation, compares to player's choice, scores and explains
-SSE streams full pipeline activity to log panel in real time
-update_hero_state → cooldowns set → roster bar updates
+8.  If failure → dockCityHealth(-10)
+9.  UPDATE incident → completed, heroes → missionsCompleted/Failed counters
+10. HeroReportAgent × N                              [parallel]
+11. ReflectionAgent × N                              [parallel]
+12. UPDATE missionHeroes.report per hero
+13. UPDATE missions.outcome + completedAt
+14. UPDATE heroes → resting + cooldownUntil
+15. SSE: hero:state_update × N
+16. EvalAgent → score/verdict/explanation/postOpNote
+17. If success → addScore() based on verdict
+18. UPDATE missions eval columns
+19. SSE: mission:outcome + log with eval score
 ```
 
 ---
 
-## Mission Outcome (deterministic, not LLM)
+## SSE Events
 
-Coverage is calculated per stat — how much of each requirement the dispatched heroes cover — then averaged into a single score. A quadratic curve converts coverage to success probability, rewarding strong matches and punishing weak ones non-linearly.
+One persistent connection per session: `GET /api/sse?sessionId=xxx`
+
+| Event                        | When                              | Payload                                                                                     |
+| ---------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------- |
+| `log`                        | Throughout pipeline               | `{ message }`                                                                               |
+| `incident:new`               | Incident pipeline complete        | `{ incidentId, title, description, slotCount, dangerLevel, hasInterrupt, expiresAt }`       |
+| `mission:interrupt`          | Halfway through missionDuration   | `{ incidentId, missionId, topHeroId, options }` (text only, no stats)                       |
+| `mission:interrupt:resolved` | After player choice               | `{ incidentId, missionId, chosenOptionId, options }` (full options with stat info revealed) |
+| `mission:outcome`            | Mission pipeline complete         | `{ incidentId, missionId, outcome, heroes, evalScore, evalVerdict, evalPostOpNote }`        |
+| `hero:state_update`          | After hero state changes          | `{ heroId, alias, availability, health, cooldownUntil }`                                    |
+| `session:update`             | After city health or score change | `{ cityHealth, score }`                                                                     |
+| `incident:expired`           | Expiry timer fires                | `{ incidentId }`                                                                            |
+| `game:over`                  | cityHealth reaches 0              | `{ finalScore }`                                                                            |
+
+**SSE manager** (`backend/src/sse/manager.ts`): `send(sessionId, event, data)` for session-scoped events, `broadcast(event, data)` for global (cooldown resolver uses broadcast since heroes are global).
+
+---
+
+## Game Loop (`services/game-loop.ts`)
+
+Runs every 5s per active SSE session:
+
+- **Expiry check** — finds `pending` incidents where `expiresAt < now`, marks `expired`, docks -15 city health, emits `incident:expired`
+- **Spawn check** — auto-generates new incident every 45-60s if active incidents < 4
+
+**Cooldown resolver** (`services/cooldown-resolver.ts`) — separate 5s interval, finds `resting` heroes where `cooldownUntil <= now` AND `cooldownUntil IS NOT NULL` (excludes `down` heroes), flips to `available`, broadcasts `hero:state_update`.
+
+---
+
+## Mission Outcome
+
+**Type 1 (no interrupt):** quadratic coverage formula
 
 ```typescript
-function getMissionOutcome(
-  heroes: Hero[],
-  requiredStats: Partial<Record<Stat, number>>,
-): "success" | "failure" {
-  const combined = combineStats(heroes);
-  const statKeys = Object.keys(requiredStats) as Stat[];
-
-  // Per-stat coverage capped at 1.0 — overpowering a stat doesn't help beyond full
-  const perStat = statKeys.map((s) =>
-    Math.min(combined[s] / requiredStats[s]!, 1.0),
-  );
-  const coverage = perStat.reduce((a, b) => a + b, 0) / perStat.length;
-
-  // Quadratic curve: coverage 1.0 → 100%, 0.75 → ~56%, 0.5 → 25%, 0.25 → ~6%
-  const successChance = Math.pow(coverage, 2);
-  return Math.random() < successChance ? "success" : "failure";
-}
+// Per-stat coverage capped at 1.0, averaged, then squared
+const coverage = avg(statKeys.map(s => min(combined[s] / required[s], 1.0)));
+const successChance = coverage²;
+return Math.random() < successChance ? "success" : "failure";
 ```
 
-Code decides outcome. LLM receives it and generates narrative to match — never the reverse.
+Triage sets only 1–3 relevant stats. All-stat padding wrecks the formula by averaging away gaps.
 
-After failed mission: weighted random — hero becomes `injured` or rarely `down`.
+**Type 2 (interrupt):**
 
-Hero slots = maximum, not requirement. One strong hero can solo a 2-slot incident.
+- `isHeroSpecific: true` → success if `topHeroId` was in dispatched heroes, else failure
+- Stat check → `combinedStat >= requiredValue` → success/failure (deterministic, no randomness)
+
+**Eval** judges dispatch quality independently of interrupt outcome — they test different skills.
+
+---
+
+## City Health & Score
+
+**City health** (starts 100, game over at 0):
+
+- Mission failure: -10
+- Incident expires unresolved: -15
+
+**Score** — incremented only on mission success, scaled by eval verdict:
+
+- `optimal` → +100
+- `good` → +75
+- `suboptimal` → +40
+- `poor` → +10
+
+Both emit `session:update` SSE with current `{ cityHealth, score }`.
+
+---
+
+## MCP Server
+
+Separate Express + `@modelcontextprotocol/sdk` process. **Critical:** `McpServer` instance is created fresh per request (not shared) — sharing caused "Already connected to transport" errors.
+
+```
+Agent (backend) → MCPServerStreamableHttp → mcp-server:3002/mcp → handler → Drizzle → Postgres
+```
+
+| Tool                           | Handler                       |
+| ------------------------------ | ----------------------------- |
+| `get_available_heroes`         | `handlers/heroes.ts`          |
+| `get_hero_profile`             | `handlers/heroes.ts`          |
+| `get_hero_mission_history`     | `handlers/heroes.ts`          |
+| `update_hero_state`            | `handlers/heroes.ts`          |
+| `save_mission_report`          | `handlers/missions.ts`        |
+| `save_dispatch_recommendation` | `handlers/recommendations.ts` |
+| `get_dispatch_recommendation`  | `handlers/recommendations.ts` |
+
+---
+
+## API Routes
+
+| Method | Path                           | Description                                                       |
+| ------ | ------------------------------ | ----------------------------------------------------------------- |
+| POST   | `/api/sessions`                | Create session                                                    |
+| GET    | `/api/sessions/:id`            | Get session state (cityHealth, score)                             |
+| GET    | `/api/incidents?sessionId=`    | Active incidents for map (pending/en_route/active)                |
+| GET    | `/api/incidents/:id`           | Single incident detail (interrupt options hidden until active)    |
+| POST   | `/api/incidents/generate`      | Manually trigger incident creation pipeline                       |
+| POST   | `/api/incidents/:id/dispatch`  | Dispatch heroes — locks immediately, pipeline fires in background |
+| POST   | `/api/incidents/:id/interrupt` | Submit interrupt choice                                           |
+| GET    | `/api/heroes`                  | All heroes with current state                                     |
+| GET    | `/api/sse?sessionId=`          | Open SSE stream                                                   |
 
 ---
 
@@ -183,21 +252,17 @@ Hero slots = maximum, not requirement. One strong hero can solo a 2-slot inciden
 
 - **Threat** — physical force (1–10)
 - **Grit** — durability (1–10)
-- **Presence** — charisma (1–10)
-- **Edge** — tactical mind / intelligence (1–10)
-- **Tempo** — agility / reflexes (1–10)
-
----
+- **Presence** — charisma / crowd control (1–10)
+- **Edge** — intelligence / tech (1–10)
+- **Tempo** — speed / reflexes (1–10)
 
 ## Hero Status
 
 **Availability:** `available` | `on_mission` | `resting`
 
-**Health:** `healthy` | `injured` (stat penalties, longer cooldown, still dispatchable) | `down` (permanent until handled)
+**Health:** `healthy` | `injured` (longer cooldown) | `down` (permanent, cooldownUntil = null)
 
-**Cooldowns:** resting ~30s | injured ~90s | down permanent
-
-Incident spawn: ~45–60s. Good decisions = roster available. Bad streak = pressure.
+**Cooldowns:** healthy resting ~30s | injured ~90s | down = never auto-recovered
 
 ---
 
@@ -215,29 +280,7 @@ Incident spawn: ~45–60s. Good decisions = roster available. Bad streak = press
 | 8   | Kai Park       | Null         | 5      | 6    | 4        | 8    | 7     |
 | 9   | Diana Vance    | Duchess      | 8      | 6    | 5        | 9    | 6     |
 
-Slot 10 is open — Tommy Ruiz (Static Jr.) was cut. Replacement TBD.
-
-### Hero Profiles
-
-Full `personality` (HeroAgent system prompt) and `bio` (Roster/Dispatcher reasoning) live in `packages/db/src/seed/heroes/<alias>.ts`. Quick reference only here.
-
-**Marcus "Ironwall" Cole** — Threat/Grit specialist. Absorbs physical damage. Calm, minimal words, moral anchor. Former NCPD. Best: armed standoffs, civilian protection, holding ground. Worst: speed, negotiations.
-
-**Zara "Static" Osei** — Edge specialist. Controls EM fields — jams comms, fries electronics, intercepts signals. Talks fast, already three steps ahead. 340k followers. Best: cyber/tech incidents. Worst: anything physical.
-
-**Danny "Boom" Kowalski** — Threat/Grit specialist. Internal explosive force generation. Genuinely kind, chaotically enthusiastic. Former EOD. Films every explosion. Best: demolition, sieges, high-threat. Worst: negotiations, precision work.
-
-**Priya "Veil" Sharma** — Presence/Edge specialist. Senses and subtly modulates emotions within 10m — not mind control, de-escalation. Agency media face. Runs anonymous psych podcast. Best: hostages, public disorder, media crises. Worst: physical force, robots.
-
-**Rex** — Threat/Grit extreme. 7-meter anthropomorphic, origin classified. Unexpectedly gentle, anxious about being frightening. Sends "good morning everyone 🌸" daily. Forgets his own size. Best: mass threats, monsters, overwhelming presence. Worst: indoors, subtlety.
-
-**Felix "Fracture" Voss** — Tempo specialist. Controls local inertia — instant acceleration, stops, kinetic transfer. 2.1M followers. Functional narcissist, genuinely excellent. Recruited at 19, still acts like it. Best: chases, evacuations, timed extractions. Worst: waiting, teamwork.
-
-**Agnes Morrow "Mother Agnes"** — Presence/Edge specialist. Passive psychological pressure field — makes self-deception difficult. Accelerates ally recovery. Former schoolteacher, 31 years. Walked in and told the Agency she was joining. Best: civilian work, youth incidents, voluntary compliance. Worst: physical threats, speed.
-
-**Kai "Null" Park** — Edge/Tempo all-rounder. Suppresses enhanced abilities on physical contact. Talks little, observes everything. No social media. Best: enhanced opponents, neutralization. Worst: ordinary crimes, mass events.
-
-**Diana "Duchess" Vance** — Edge/Threat all-rounder. Former military sniper. Perceives trajectories in real time — never misses. Perfectionist. Dry black humor, never announced. Maintains encrypted agent efficiency spreadsheet. Best: precision ops, sniper threats, complex staging. Worst: chaos, Rex.
+Full `personality` (HeroReportAgent system prompt) and `bio` (NarrativePickAgent + DispatcherAgent reasoning) in `packages/db/src/seed/heroes/<alias>.ts`. Bio is dispatcher quick-reference style — power mechanics, what makes them the obvious pick.
 
 ---
 
@@ -246,357 +289,46 @@ Full `personality` (HeroAgent system prompt) and `bio` (Roster/Dispatcher reason
 Comic book aesthetic, dark theme.
 
 ```
-┌─────────────────────────────────────┬──────────────────┐
-│                                     │  SDN LOG         │
-│          CITY MAP                   │────────────────  │
-│                                     │ Analyzing...     │
-│  [Bank Robbery]  [Fire]             │ 6/10 available   │
-│  [Alien Landing] [Cat in tree]      │ Agent picked:    │
-│                                     │   Ironwall       │
-│  incidents clickable                │ Eval: 9/10       │
-│  icons vary by danger level         │   good call      │
-│                                     │ [scrollable,     │
-│                                     │  semitransparent]│
-├─────────────────────────────────────┤                  │
-│  ROSTER BAR — fixed, always visible │                  │
-│  [portrait] [portrait] [portrait] [portrait] ...       │
-│  Available  Resting:12s  On mission  Injured:45s       │
-└─────────────────────────────────────┴──────────────────┘
+┌──────────────────────────────────────┬──────────────────┐
+│                                      │  SDN LOG         │
+│           CITY MAP                   │────────────────  │
+│                                      │ Analyzing...     │
+│  [●] Power Surge   [●] Bank Job      │ Incident:        │
+│  [●] Collapse                        │   Power Surge    │
+│                                      │ Rec: Static      │
+│  pins colored by danger level        │ Eval: 9/10       │
+│  pulsing = interrupt pending         │   good call      │
+│                                      │ [scrollable]     │
+├──────────────────────────────────────┤                  │
+│  ROSTER BAR — always visible         │                  │
+│  [portrait] [portrait] [portrait] ...                   │
+│  Available  Resting:12s  On mission  Injured:45s  Down  │
+└──────────────────────────────────────┴──────────────────┘
 ```
 
-**Hero states in roster bar:** Available (full color) | On mission (highlighted, locked) | Resting (greyed, countdown) | Injured (greyed + icon, longer countdown) | Down (dark overlay)
+**Incident Modal:** title + description (no stat list, no danger number), hero slots, dispatch button. Roster shows stat bars while modal is open.
 
-**Hero Card Modal:** portrait, name/alias, stat bars (1–10 visual), bio, mission stats, current status.
+**Interrupt Modal:** replaces dispatch UI mid-mission. Options text only. Hero-specific option shows portrait, greyed + unselectable if that hero wasn't sent. After choice: stat icons revealed on all options.
 
-**Incident Modal:** title + description (text only — no stat list, no danger level), hero slots (1–4), dispatch button. When open: roster shows stat bars so player can reason about who fits.
+**Hero Card:** portrait, name/alias, stat bars, bio, missionsCompleted/missionsFailed, current status.
 
 ---
 
 ## Game Mode (MVP)
 
-**City Health** — starts at 100. The city takes damage when missions fail or expire unresolved.
+- Session runs until city health hits 0
+- No auth — session stored in DB, ID passed by client
+- Spawn pressure: new incident every ~45–60s, max 4 on map simultaneously
+- Danger level never shown as a number — only as pin color (green/yellow/red)
 
-- Normal mission failure: -10 HP
-- Hero goes down: -20 HP
-- Incident expires unresolved (nobody dispatched in time): -15 HP
-- Game over at 0. Player sees final stats, can restart.
-
-**Session** — one continuous run until city health hits 0. No auth required for MVP. Session data stored locally / in DB for the run.
-
-**Spawn pressure** — new incident every ~45–60s. Max 4 active on the map. No artificial help — if the player's roster is depleted, incidents pile up. That's a consequence, not a bug.
-
-**Danger level** — internal scale 1–3: 1=minor, 2=standard, 3=major. Never shown as a number to the player (only as visual pin styling on the map).
-
-**Mission duration** (time on scene) set by IncidentGeneratorAgent at creation time:
-
-- Minor (danger 1): ~30s
-- Standard (danger 2): ~60s
-- Major (danger 3): ~90–120s
-
-**Travel time** — heroes travel to the incident and back to base. Flat ~10–15s each way for now. Heroes are locked `on_mission` for the full trip: travel there + mission duration + travel back. Outcome is calculated when mission duration completes (while still on scene), heroes return after.
-
-**Incident status lifecycle:** `pending` → `en_route` → `active` → `completed` | `expired`
-
-- `pending` — on the map, waiting for player to dispatch
-- `en_route` — heroes traveling to the incident
-- `active` — heroes on scene, mission running
-- `completed` — mission done (success or failure)
-- `expired` — expiry timer ran out, nobody dispatched
-
-Future: travel time could scale with map position or Tempo stat.
-
-**Incident expiry timer** — each incident has a countdown before it expires unresolved. Scales with difficulty: harder incidents give more time (bigger events take longer to unfold, player needs time to find the right heroes). Expiry timer visible on the map pin.
-
-- Minor: ~60s to dispatch before expiry
-- Standard: ~120s
-- Major: ~180s
-
-Ignoring a hard incident is a real choice — it stays on the board longer but the city damage on expiry is higher.
-
-**SSE stream** carries both log panel events and `incident:new` pushes — one persistent connection, multiple event types. No polling needed on the frontend.
+**Incident lifecycle:** `pending` → `en_route` → `active` → `completed` | `expired`
 
 ---
 
-## MCP Server Architecture
+## Future
 
-Separate Node.js + TypeScript process in `mcp-server/`, same Docker Compose stack. Runs on port **3002**. Agents connect to it over HTTP using the OpenAI Agents SDK's built-in MCP client.
-
-```
-Agent (backend) → MCPServerStreamableHttp → mcp-server:3002 → Drizzle → Postgres
-```
-
-**Libraries:**
-
-- MCP server: `@modelcontextprotocol/sdk` — official MCP TypeScript SDK, handles tool registration and HTTP transport
-- Agent connection: `MCPServerStreamableHttp` from `@openai/agents` — agents discover and call MCP tools the same way they call any other tool, no special handling needed
-
-**Transport: Streamable HTTP** — MCP server exposes a single HTTP endpoint. Agents point at `http://mcp-server:3002/mcp`. Works cleanly in Docker Compose since each service has its own hostname.
-
-**Shared schema:** Both backend and mcp-server import from `@vigil/db` (npm workspace). Schema lives in one place, both services stay in sync automatically.
-
-```typescript
-// Both services import the same way
-import { heroes, incidents } from "@vigil/db";
-```
-
-**Each MCP tool** lives in its own file under `mcp-server/src/tools/`. The main `mcp-server/src/index.ts` registers all tools and starts the HTTP server.
-
----
-
-## Future (not MVP, but build toward it)
-
-- **Auth + user accounts** — sessions tied to a user, leaderboards
-- **Shift mode** — handle X incidents per shift, get debriefed and scored at the end
-- **Hero progression** — skills that reduce mission duration, improve stat effectiveness, unlock after N missions
-- **Tempo influencing mission speed** — high Tempo heroes complete missions faster
-- **Create your own hero** — custom name, stats, bio, generated portrait
-- **Campaign / story mode** — scripted incident sequences with escalating difficulty
-- **Hero recruitment** — replace `down` heroes via a recruitment mechanic
-
-Schema should anticipate users, sessions, and hero_skills tables from day one even if unused in MVP.
-
----
-
-## Deployment
-
-```
-Vercel         → Next.js frontend
-AWS            → backend (Node.js/TS) + MCP server + RDS (PostgreSQL)
-Docker Compose → local dev (Postgres + backend + MCP server)
-```
-
-SDK built-in traces = primary observability. Langfuse Cloud = optional.
-
----
-
-## Agent Implementation Sketch
-
-### SDK primitives we use
-
-```typescript
-import { Agent, run, MCPServerStreamableHttp } from '@openai/agents';
-import { z } from 'zod';
-```
-
-- `new Agent({ name, instructions, tools, mcpServers, outputType, model })` — agent definition
-- `run(agent, input)` — executes a single agent, returns `RunResult`
-- `run(agent, input, { stream: true })` — returns `StreamedRunResult`, iterable for SSE
-- `MCPServerStreamableHttp` — connects agents to our MCP server over HTTP
-- `outputType: z.object({...})` — structured output via Zod (TriageAgent, IncidentGeneratorAgent, EvalAgent)
-- `instructions: hero.personality` — HeroAgent system prompt comes directly from the DB field
-
----
-
-### MCP connection strategy
-
-One shared `MCPServerStreamableHttp` instance, connected at backend startup, reused across all pipeline runs. Not connected/closed per-request — too expensive for a game with constant incident pipelines.
-
-```typescript
-// backend/src/agents/mcp.ts
-export const mcpServer = new MCPServerStreamableHttp({
-  url: 'http://mcp-server:3002/mcp',
-  name: 'Vigil MCP Server',
-  cacheToolsList: true, // tool list doesn't change at runtime
-});
-
-await mcpServer.connect(); // called once at startup
-```
-
-Agents that need DB access receive `mcpServers: [mcpServer]`. Agents that don't (TriageAgent, ReflectionAgent) get no MCP — keeps them fast and stateless.
-
----
-
-### Orchestration: code-driven, not handoffs
-
-The pipeline is explicit TypeScript — we call each agent ourselves. No triage-style routing. No handoffs. The SDK agent loop handles tool calls within each agent; we handle the sequence between agents.
-
-```typescript
-// Full incident pipeline (pseudocode)
-async function runIncidentPipeline(incidentDescription: string, sessionId: string) {
-
-  // Step 1 — parallel: triage the incident + fetch available heroes
-  const [triage, roster] = await Promise.all([
-    runTriageAgent(incidentDescription),
-    runRosterAgent(),
-  ]);
-
-  // Step 2 — score heroes deterministically (pure code, no LLM)
-  const recommendation = scoreHeroes(triage.requiredStats, roster.heroes);
-
-  // Step 3 — store hidden recommendation via MCP
-  await runDispatcherAgent(incidentId, recommendation);
-
-  // → incident pin appears on the map here ←
-
-  // Step 4 — after player dispatches: calculate outcome (pure code)
-  const outcome = getMissionOutcome(dispatchedHeroes, triage.requiredStats);
-
-  // Step 5 — each dispatched hero writes their report (parallel)
-  const reports = await Promise.all(
-    dispatchedHeroes.map(hero => runHeroAgent(hero, outcome, missionContext))
-  );
-
-  // Step 6 — reflection pass on each report (sequential per hero, max 2 iterations)
-  const polishedReports = await Promise.all(
-    reports.map(report => runReflectionAgent(report))
-  );
-
-  // Step 7 — eval: reveal recommendation, score player choice
-  const eval_ = await runEvalAgent(incidentId, dispatchedHeroIds);
-
-  // Step 8 — stream all of the above to the frontend log panel via SSE
-}
-```
-
----
-
-### Per-agent definitions
-
-**TriageAgent** — structured output, no MCP
-```typescript
-const TriageOutput = z.object({
-  requiredStats: z.record(z.enum(['threat','grit','presence','edge','tempo']), z.number()),
-  slotCount: z.number().min(1).max(4),
-  dangerLevel: z.number().min(1).max(3),
-});
-
-const triageAgent = new Agent({
-  name: 'TriageAgent',
-  instructions: 'Extract structured incident data from the description...',
-  outputType: TriageOutput,
-  model: 'gpt-4.1',
-});
-```
-
-**RosterAgent** — calls MCP `get_available_heroes`
-```typescript
-const rosterAgent = new Agent({
-  name: 'RosterAgent',
-  instructions: 'Fetch available heroes and return their profiles.',
-  mcpServers: [mcpServer],
-  model: 'gpt-4.1',
-});
-```
-
-**DispatcherAgent** — stores recommendation via MCP `save_dispatch_recommendation`
-```typescript
-const dispatcherAgent = new Agent({
-  name: 'DispatcherAgent',
-  instructions: 'Store the dispatch recommendation for this incident.',
-  mcpServers: [mcpServer],
-  model: 'gpt-4.1',
-});
-```
-
-**HeroAgent** — one instance per hero, personality as system prompt, calls MCP for mission history
-```typescript
-function createHeroAgent(hero: Hero) {
-  return new Agent({
-    name: `HeroAgent_${hero.alias}`,
-    instructions: hero.personality, // full lore prompt from DB
-    mcpServers: [mcpServer],        // needs get_hero_mission_history + save_mission_report
-    model: 'gpt-4.1',
-  });
-}
-```
-
-**ReflectionAgent** — evaluates HeroAgent report, rewrites if needed, max 2 iterations, no MCP
-```typescript
-const ReflectionOutput = z.object({
-  approved: z.boolean(),
-  rewrittenReport: z.string().optional(),
-  feedback: z.string(),
-});
-
-const reflectionAgent = new Agent({
-  name: 'ReflectionAgent',
-  instructions: 'Evaluate this mission report for quality and character voice consistency...',
-  outputType: ReflectionOutput,
-  model: 'gpt-4.1',
-});
-```
-
-**EvalAgent** — calls MCP `get_dispatch_recommendation`, compares to player choice
-```typescript
-const EvalOutput = z.object({
-  recommendedHeroIds: z.array(z.string()),
-  playerHeroIds: z.array(z.string()),
-  score: z.number().min(0).max(10),
-  explanation: z.string(),
-  verdict: z.enum(['optimal', 'good', 'suboptimal', 'poor']),
-});
-
-const evalAgent = new Agent({
-  name: 'EvalAgent',
-  instructions: 'Retrieve the hidden recommendation and compare it to the player dispatch...',
-  outputType: EvalOutput,
-  mcpServers: [mcpServer],
-  model: 'gpt-4.1',
-});
-```
-
-**IncidentGeneratorAgent** — structured output, no MCP
-```typescript
-const IncidentOutput = z.object({
-  title: z.string(),
-  description: z.string(),        // flavor text only, shown to player
-  requiredStats: z.record(...),   // internal, never shown
-  slotCount: z.number(),
-  dangerLevel: z.number(),
-  missionDuration: z.number(),    // seconds
-  expiryDuration: z.number(),     // seconds
-  hasInterrupt: z.boolean(),
-  interruptOptions: z.array(...).optional(),
-});
-
-const incidentGeneratorAgent = new Agent({
-  name: 'IncidentGeneratorAgent',
-  instructions: 'Generate a new city incident...',
-  outputType: IncidentOutput,
-  model: 'gpt-4.1',
-});
-```
-
----
-
-### Streaming to SSE
-
-Backend runs the pipeline with `stream: true` and forwards events to the frontend SSE connection. The frontend log panel subscribes to one persistent SSE connection for the session.
-
-```typescript
-// Rough shape — not final
-const stream = await run(agent, input, { stream: true });
-
-for await (const event of stream) {
-  if (event.type === 'run_item_stream_event') {
-    sseConnection.send({ type: 'agent_event', data: event.item });
-  }
-  if (event.type === 'agent_updated_stream_event') {
-    sseConnection.send({ type: 'agent_switch', agent: event.agent.name });
-  }
-}
-
-await stream.completed;
-```
-
-Custom SSE events we'll also push (not from the agent stream, from our pipeline code):
-- `incident:new` — incident pin appears on the map
-- `hero:state_update` — roster bar updates after cooldown changes
-- `mission:outcome` — outcome calculated, triggers report generation
-
----
-
-### Files to create
-
-```
-backend/src/agents/
-├── mcp.ts                    # shared MCPServerStreamableHttp instance
-├── triage.ts                 # TriageAgent
-├── roster.ts                 # RosterAgent
-├── dispatcher.ts             # DispatcherAgent
-├── hero.ts                   # createHeroAgent(hero)
-├── reflection.ts             # ReflectionAgent
-├── eval.ts                   # EvalAgent
-├── incident-generator.ts     # IncidentGeneratorAgent
-└── pipeline.ts               # runIncidentPipeline() — orchestrates all of the above
-```
+- Auth + leaderboards
+- Shift mode (handle N incidents, get debriefed)
+- Hero progression + skills
+- Create your own hero
+- Campaign / story mode
