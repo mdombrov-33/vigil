@@ -44,6 +44,39 @@ export async function getActiveIncidents(req: Request, res: Response) {
   sendJson(res, 200, mapped);
 }
 
+// GET /api/incidents/:id
+export async function getIncident(req: Request, res: Response) {
+  const [incident] = await db
+    .select()
+    .from(incidents)
+    .where(eq(incidents.id, req.params.id as string))
+    .limit(1);
+
+  if (!incident) {
+    sendJson(res, 404, { error: "Incident not found" });
+    return;
+  }
+
+  sendJson(res, 200, {
+    incidentId: incident.id,
+    title: incident.title,
+    description: incident.description,
+    slotCount: incident.slotCount,
+    dangerLevel: incident.dangerLevel,
+    hasInterrupt: incident.hasInterrupt,
+    interruptOptions: incident.status === "active" && incident.hasInterrupt
+      ? (incident.interruptOptions as InterruptOption[])?.map((o) => ({
+          id: o.id,
+          text: o.text,
+          isHeroSpecific: o.isHeroSpecific,
+        }))
+      : null,
+    status: incident.status,
+    expiresAt: incident.expiresAt,
+    createdAt: incident.createdAt,
+  });
+}
+
 // POST /api/incidents/generate
 // Runs the full incident creation pipeline — generator + triage + dispatcher.
 // Awaited before returning so the pin appears analysis-complete.

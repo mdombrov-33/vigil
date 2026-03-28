@@ -1,5 +1,5 @@
 import { db, heroes, incidents, missions, missionHeroes } from "@vigil/db";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { runIncidentGeneratorAgent } from "./incident-generator.js";
 import { runTriageAgent } from "./triage.js";
 import { runNarrativePickAgent } from "./narrative-pick.js";
@@ -201,10 +201,19 @@ export async function runMissionPipeline(
     await dockCityHealth(sessionId, 10, `mission failed: ${incident.title}`);
   }
 
-  await db
-    .update(incidents)
-    .set({ status: "completed" })
-    .where(eq(incidents.id, incidentId));
+  await Promise.all([
+    db.update(incidents).set({ status: "completed" }).where(eq(incidents.id, incidentId)),
+    db.update(heroes)
+      .set({
+        missionsCompleted: outcome === "success"
+          ? sql`${heroes.missionsCompleted} + 1`
+          : heroes.missionsCompleted,
+        missionsFailed: outcome === "failure"
+          ? sql`${heroes.missionsFailed} + 1`
+          : heroes.missionsFailed,
+      })
+      .where(inArray(heroes.id, heroIds)),
+  ]);
 
   console.log(
     `[mission-pipeline] generating reports for: ${dispatchedHeroes.map((h) => h.alias).join(", ")}`,
