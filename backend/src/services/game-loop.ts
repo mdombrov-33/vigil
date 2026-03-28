@@ -7,8 +7,16 @@ import { runIncidentCreationPipeline } from "@/agents/pipeline.js";
 const MAX_ACTIVE_INCIDENTS = 4;
 const SPAWN_INTERVAL_MS = 45_000 + Math.random() * 15_000; // 45–60s, randomized once at startup
 
-// Track last spawn time per session
+// Track last spawn time per session.
+// Initialized to Date.now() when session connects so the first auto-spawn
+// waits a full interval rather than firing immediately.
 const lastSpawn = new Map<string, number>();
+
+export function registerSession(sessionId: string) {
+  if (!lastSpawn.has(sessionId)) {
+    lastSpawn.set(sessionId, Date.now());
+  }
+}
 
 export function startGameLoop() {
   console.log(

@@ -9,9 +9,9 @@ const triageAgent = new Agent({
 Given a raw incident description, extract the structured game data that determines how this mission plays out.
 
 Rules:
-- requiredStats: ONLY include the 1–3 stats that directly determine success for this specific incident. Leave all other stats OUT entirely — absence means they are irrelevant. Weights 1–10 reflect how critical each stat is.
+- requiredStats: ONLY include the 1–3 stats that directly determine success for this specific incident. Each stat value must be a plain integer 1–10. Leave all other stats OUT entirely — absence means they are irrelevant.
   threat = physical force, grit = durability, presence = charisma/crowd control, edge = intelligence/tech, tempo = speed/agility
-  Examples: chemical spill on infrastructure → edge + tempo only. Armed standoff → threat + grit only. Hostage negotiation → presence + edge only. A riot → presence only. Never pad with stats that aren't the actual deciding factor.
+  Examples: chemical spill on infrastructure → { edge: 8, tempo: 6 }. Armed standoff → { threat: 8, grit: 7 }. Hostage negotiation → { presence: 8, edge: 6 }. A riot → { presence: 9 }. Never pad with stats that aren't the actual deciding factor.
 - slotCount: how many heroes the incident warrants (1 = minor solo job, 4 = major crisis)
 - dangerLevel: 1=minor (green), 2=standard (yellow), 3=major (red)
 - missionDuration: time heroes spend on scene in seconds. Minor ~30s, standard ~60s, major ~90–120s
