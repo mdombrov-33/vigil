@@ -1,0 +1,52 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/993842497884/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions@vigil-prod-7788.iam.gserviceaccount.com
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker europe-central2-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: prod
+          platforms: linux/amd64
+          push: true
+          tags: europe-central2-docker.pkg.dev/vigil-prod-7788/vigil/backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy vigil-backend \
+            --image=europe-central2-docker.pkg.dev/vigil-prod-7788/vigil/backend:${{ github.sha }} \
+            --region=europe-central2 \
+            --project=vigil-prod-7788 \
+            --quiet
