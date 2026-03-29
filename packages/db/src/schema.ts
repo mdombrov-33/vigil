@@ -50,6 +50,7 @@ export const heroes = pgTable("heroes", {
   personality: text("personality").notNull(),
   bio: varchar("bio", { length: 1000 }).notNull(),
   portraitUrl: varchar("portrait_url", { length: 500 }),
+  injuredPortraitUrl: varchar("injured_portrait_url", { length: 500 }),
   // Mission counters for hero card UI
   missionsCompleted: integer("missions_completed").notNull().default(0),
   missionsFailed: integer("missions_failed").notNull().default(0),

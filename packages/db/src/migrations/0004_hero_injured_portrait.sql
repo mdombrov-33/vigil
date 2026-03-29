@@ -1,0 +1,1 @@
+ALTER TABLE "heroes" ADD COLUMN "injured_portrait_url" varchar(500);

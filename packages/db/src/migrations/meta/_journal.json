@@ -29,6 +29,13 @@
       "when": 1774651547453,
       "tag": "0003_mission_eval",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774770745668,
+      "tag": "0004_hero_injured_portrait",
+      "breakpoints": true
     }
   ]
 }
