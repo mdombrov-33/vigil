@@ -7,6 +7,18 @@ import { fracture } from "./heroes/fracture.js";
 import { agnes } from "./heroes/agnes.js";
 import { null_ } from "./heroes/null.js";
 import { duchess } from "./heroes/duchess.js";
+import type { NewHero } from "../schema.js";
+
+const baseUrl = process.env.PORTRAITS_BASE_URL ?? "";
+
+function withPortraits(hero: NewHero & { alias: string }): NewHero {
+  const key = hero.alias.toLowerCase();
+  return {
+    ...hero,
+    portraitUrl: `${baseUrl}/${key}-healthy.webp`,
+    injuredPortraitUrl: `${baseUrl}/${key}-injured.webp`,
+  };
+}
 
 export const heroSeedData = [
   ironwall,
@@ -18,4 +30,4 @@ export const heroSeedData = [
   agnes,
   null_,
   duchess,
-];
+].map(withPortraits);
