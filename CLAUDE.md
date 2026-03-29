@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-03-28 (backend complete)
+> Last updated: 2026-03-29
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -17,10 +17,10 @@ Web game where the player dispatches superheroes to incidents on a city map. A h
 | Schema        | Zod structured output                                   |
 | ORM           | Drizzle ORM                                             |
 | Database      | PostgreSQL                                              |
-| MCP Server    | Custom Node.js process, same Docker stack, port 3002    |
+| MCP Server    | Mounted on `/mcp` inside the backend process            |
 | Realtime      | SSE — one persistent connection per session             |
 | Observability | OpenAI Agents SDK built-in traces                       |
-| Deploy        | AWS (backend + MCP + RDS), Vercel (frontend)            |
+| Deploy        | GCP (Cloud Run + Cloud SQL), Vercel (frontend)          |
 | Local dev     | Docker Compose                                          |
 
 ---
@@ -29,32 +29,30 @@ Web game where the player dispatches superheroes to incidents on a city map. A h
 
 ```
 vigil/
-├── packages/
-│   └── db/                        # @vigil/db — shared schema, enums, client, seed
-│       └── src/
-│           ├── schema.ts
-│           ├── enums.ts
-│           ├── client.ts
-│           ├── index.ts
-│           ├── migrations/
-│           └── seed/
-│               ├── heroes/        # One file per hero (alias as filename)
-│               ├── heroes.ts
-│               └── index.ts
 ├── backend/
 │   └── src/
 │       ├── agents/                # One file per agent + pipeline.ts + mcp.ts + models.ts + schemas.ts
-│       ├── routes/                # Thin Express routers only
-│       ├── handlers/              # Business logic called by routes
-│       ├── services/              # Pure logic — outcome, cooldowns, scoring, city health, game loop
+│       ├── api/v1/
+│       │   ├── routes/            # Thin Express routers only
+│       │   └── handlers/          # Business logic called by routes
+│       ├── db/                    # Schema, enums, client, migrations, seed
+│       │   ├── schema.ts
+│       │   ├── enums.ts
+│       │   ├── client.ts
+│       │   ├── index.ts
+│       │   ├── migrations/
+│       │   └── seed/
+│       │       ├── heroes/        # One file per hero (alias as filename)
+│       │       ├── heroes.ts
+│       │       └── index.ts
+│       ├── mcp/                   # MCP server mounted at /mcp — McpServer created per-request
+│       │   ├── router.ts          # Express router wiring
+│       │   ├── tools/             # One file per MCP tool
+│       │   └── handlers/          # DB logic called by tools
+│       ├── services/              # Pure logic — outcome, cooldowns, scoring, city health, schedulers
 │       ├── sse/                   # SSE manager (connection registry + send/broadcast)
 │       ├── tracing.ts
 │       └── types/
-├── mcp-server/
-│   └── src/
-│       ├── tools/                 # One file per MCP tool
-│       ├── handlers/              # DB logic called by tools
-│       └── index.ts               # McpServer created per-request (not shared instance)
 ├── frontend/
 │   └── src/
 │       ├── app/
@@ -68,7 +66,7 @@ vigil/
 - `route → handler → service / db` — routes are thin wiring only
 - Services are pure logic — no DB calls except `city-health.ts` and `game-loop.ts` which coordinate cross-cutting concerns
 - Agents are orchestrated by `pipeline.ts` — no agent calls another agent directly
-- MCP server: `tool → handler → db` — same layering, tools never touch DB directly
+- MCP: `router → tool → handler → db` — tools never touch DB directly
 
 ---
 
@@ -214,10 +212,10 @@ Both emit `session:update` SSE with current `{ cityHealth, score }`.
 
 ## MCP Server
 
-Separate Express + `@modelcontextprotocol/sdk` process. **Critical:** `McpServer` instance is created fresh per request (not shared) — sharing caused "Already connected to transport" errors.
+Mounted on `/mcp` inside the backend process (`src/mcp/router.ts`). **Critical:** `McpServer` instance is created fresh per request (not shared) — sharing caused "Already connected to transport" errors.
 
 ```
-Agent (backend) → MCPServerStreamableHttp → mcp-server:3002/mcp → handler → Drizzle → Postgres
+Agent (backend) → MCPServerStreamableHttp → localhost:{PORT}/mcp → handler → Drizzle → Postgres
 ```
 
 | Tool                           | Handler                       |
@@ -234,17 +232,18 @@ Agent (backend) → MCPServerStreamableHttp → mcp-server:3002/mcp → handler 
 
 ## API Routes
 
-| Method | Path                           | Description                                                       |
-| ------ | ------------------------------ | ----------------------------------------------------------------- |
-| POST   | `/api/sessions`                | Create session                                                    |
-| GET    | `/api/sessions/:id`            | Get session state (cityHealth, score)                             |
-| GET    | `/api/incidents?sessionId=`    | Active incidents for map (pending/en_route/active)                |
-| GET    | `/api/incidents/:id`           | Single incident detail (interrupt options hidden until active)    |
-| POST   | `/api/incidents/generate`      | Manually trigger incident creation pipeline                       |
-| POST   | `/api/incidents/:id/dispatch`  | Dispatch heroes — locks immediately, pipeline fires in background |
-| POST   | `/api/incidents/:id/interrupt` | Submit interrupt choice                                           |
-| GET    | `/api/heroes`                  | All heroes with current state                                     |
-| GET    | `/api/sse?sessionId=`          | Open SSE stream                                                   |
+| Method | Path                              | Description                                                       |
+| ------ | --------------------------------- | ----------------------------------------------------------------- |
+| POST   | `/api/v1/sessions`                | Create session                                                    |
+| GET    | `/api/v1/sessions/:id`            | Get session state (cityHealth, score)                             |
+| GET    | `/api/v1/incidents?sessionId=`    | Active incidents for map (pending/en_route/active)                |
+| GET    | `/api/v1/incidents/:id`           | Single incident detail (interrupt options hidden until active)    |
+| POST   | `/api/v1/incidents/generate`      | Manually trigger incident creation pipeline                       |
+| POST   | `/api/v1/incidents/:id/dispatch`  | Dispatch heroes — locks immediately, pipeline fires in background |
+| POST   | `/api/v1/incidents/:id/interrupt`   | Submit interrupt choice                                           |
+| POST   | `/api/v1/incidents/:id/acknowledge` | Acknowledge debrief — moves incident from debriefing → completed  |
+| GET    | `/api/v1/heroes`                  | All heroes with current state                                     |
+| GET    | `/api/v1/sse?sessionId=`          | Open SSE stream                                                   |
 
 ---
 
@@ -321,7 +320,9 @@ Comic book aesthetic, dark theme.
 - Spawn pressure: new incident every ~45–60s, max 4 on map simultaneously
 - Danger level never shown as a number — only as pin color (green/yellow/red)
 
-**Incident lifecycle:** `pending` → `en_route` → `active` → `completed` | `expired`
+**Incident lifecycle:** `pending` → `en_route` → `active` → `debriefing` → `completed` | `expired`
+
+`debriefing` — mission finished, pin stays on map waiting for player to click and read the debrief. POST `/:id/acknowledge` moves it to `completed` and clears the pin.
 
 ---
 
@@ -344,9 +345,9 @@ The city map is **not** a real map library. It's a static background image (gene
 ### State Strategy
 
 **TanStack Query** handles:
-- `GET /api/heroes` — initial load + manual refetch (needed for stat bars in dispatch modal)
-- `GET /api/sessions/:id` — initial session state
-- `GET /api/incidents?sessionId=` — hydrate map on load
+- `GET /api/v1/heroes` — initial load + manual refetch (needed for stat bars in dispatch modal)
+- `GET /api/v1/sessions/:id` — initial session state
+- `GET /api/v1/incidents?sessionId=` — hydrate map on load
 
 **Zustand** (`stores/gameStore.ts`) holds everything that SSE writes to:
 - `sessionId`

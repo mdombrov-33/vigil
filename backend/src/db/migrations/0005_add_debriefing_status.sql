@@ -1,0 +1,1 @@
+ALTER TYPE "public"."incident_status" ADD VALUE 'debriefing' BEFORE 'completed';

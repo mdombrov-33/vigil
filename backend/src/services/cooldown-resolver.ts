@@ -1,10 +1,10 @@
-import { db, heroes } from "@vigil/db";
+import { db, heroes } from "@/db/index.js";
 import { and, eq, isNotNull, lte } from "drizzle-orm";
 import { broadcast } from "@/sse/manager";
 
 // Checks every 5s for heroes whose cooldown has expired and flips them back to available.
 // Heroes with health=down have cooldownUntil=null — they are excluded and stay resting permanently.
-export function startCooldownResolver() {
+export function startHeroRecovery() {
   setInterval(async () => {
     const now = new Date();
 

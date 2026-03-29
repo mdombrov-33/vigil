@@ -1,7 +1,7 @@
 import { Agent, run } from "@openai/agents";
 import { MODEL_FAST } from "./models.js";
 import { ReflectionOutputSchema, type ReflectionOutput } from "./schemas.js";
-import type { Hero } from "@vigil/db";
+import type { Hero } from "@/db/index.js";
 
 const reflectionAgent = new Agent({
   name: "ReflectionAgent",

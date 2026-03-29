@@ -1,4 +1,4 @@
-import { db, heroes, incidents, missions, missionHeroes } from "@vigil/db";
+import { db, heroes, incidents, missions, missionHeroes } from "@/db/index.js";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { runIncidentGeneratorAgent } from "./incident-generator.js";
 import { runTriageAgent } from "./triage.js";
@@ -202,7 +202,7 @@ export async function runMissionPipeline(
   }
 
   await Promise.all([
-    db.update(incidents).set({ status: "completed" }).where(eq(incidents.id, incidentId)),
+    db.update(incidents).set({ status: "debriefing" }).where(eq(incidents.id, incidentId)),
     db.update(heroes)
       .set({
         missionsCompleted: outcome === "success"

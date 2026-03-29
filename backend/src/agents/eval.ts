@@ -2,7 +2,7 @@ import { Agent, run } from "@openai/agents";
 import { MODEL_FULL } from "./models.js";
 import { mcpServer } from "./mcp.js";
 import { EvalOutputSchema, type EvalOutput } from "./schemas.js";
-import type { Hero } from "@vigil/db";
+import type { Hero } from "@/db/index.js";
 
 const evalAgent = new Agent({
   name: "EvalAgent",

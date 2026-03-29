@@ -1,4 +1,4 @@
-import type { Hero } from "@vigil/db";
+import type { Hero } from "@/db/index.js";
 import type { RequiredStats, Stat, StatMap } from "@/types";
 
 export type InterruptOption = {

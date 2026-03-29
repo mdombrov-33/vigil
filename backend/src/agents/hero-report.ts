@@ -2,7 +2,7 @@ import { run, Agent } from "@openai/agents";
 import { MODEL_FULL } from "./models.js";
 import { mcpServer } from "./mcp.js";
 import { HeroReportSchema, type HeroReport } from "./schemas.js";
-import type { Hero, Incident } from "@vigil/db";
+import type { Hero, Incident } from "@/db/index.js";
 
 export function createHeroReportAgent(hero: Hero) {
   return new Agent({

@@ -1,7 +1,7 @@
 import { Agent, run } from "@openai/agents";
 import { MODEL_FAST } from "./models.js";
 import { mcpServer } from "./mcp.js";
-import type { Hero } from "@vigil/db";
+import type { Hero } from "@/db/index.js";
 import type { TriageOutput } from "./schemas.js";
 
 const dispatcherAgent = new Agent({

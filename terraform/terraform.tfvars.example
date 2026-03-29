@@ -1,0 +1,4 @@
+project_id     = "your-gcp-project-id"
+region         = "europe-central2"
+openai_api_key = "sk-..."
+db_password    = "your-secure-password"

@@ -1,16 +1,17 @@
 import "dotenv/config";
 import express from "express";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { db } from "@vigil/db";
+import { db } from "@/db/index.js";
 import { sendJson } from "@/utils/response";
-import { incidentsRouter } from "@/routes/incidents";
-import { sessionsRouter } from "@/routes/sessions";
-import { heroesRouter } from "@/routes/heroes";
-import sseRouter from "@/routes/sse";
+import { incidentsRouter } from "@/api/v1/routes/incidents";
+import { sessionsRouter } from "@/api/v1/routes/sessions";
+import { heroesRouter } from "@/api/v1/routes/heroes";
+import sseRouter from "@/api/v1/routes/sse";
 import { mcpServer } from "@/agents/mcp";
 import { initTracing } from "@/tracing";
-import { startCooldownResolver } from "@/services/cooldown-resolver";
-import { startGameLoop } from "@/services/game-loop";
+import { startHeroRecovery } from "@/services/cooldown-resolver";
+import { startIncidentScheduler } from "@/services/game-loop";
+import mcpRouter from "@/mcp/router.js";
 
 initTracing();
 
@@ -23,24 +24,21 @@ app.get("/api/healthz", (_req, res) => {
   sendJson(res, 200, { status: "ok" });
 });
 
-app.use("/api/sessions", sessionsRouter);
-app.use("/api/incidents", incidentsRouter);
-app.use("/api/heroes", heroesRouter);
-app.use("/api/sse", sseRouter);
+app.use("/api/v1/sessions", sessionsRouter);
+app.use("/api/v1/incidents", incidentsRouter);
+app.use("/api/v1/heroes", heroesRouter);
+app.use("/api/v1/sse", sseRouter);
+app.use("/mcp", mcpRouter);
 
-console.log("Running migrations...");
-await migrate(db, { migrationsFolder: "../packages/db/src/migrations" });
-console.log("Migrations complete");
-
-await mcpServer.connect();
-console.log("MCP server connected");
-
-startCooldownResolver();
-console.log("Cooldown resolver started");
-
-startGameLoop();
-console.log("Game loop started");
-
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Vigil backend running on http://localhost:${PORT}`);
+
+  console.log("Running migrations...");
+  await migrate(db, { migrationsFolder: "./src/db/migrations" });
+  console.log("Migrations complete");
+
+  await mcpServer.connect();
+  console.log("MCP server connected");
+  startHeroRecovery();
+  startIncidentScheduler();
 });

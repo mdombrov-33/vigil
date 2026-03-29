@@ -1,4 +1,4 @@
-import type { Hero } from "@vigil/db";
+import type { Hero } from "@/db/index.js";
 
 const COOLDOWN_RESTING_S = 30;
 const COOLDOWN_INJURED_S = 90;

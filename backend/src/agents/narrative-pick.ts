@@ -1,7 +1,7 @@
 import { Agent, run } from "@openai/agents";
 import { MODEL_FULL } from "./models.js";
 import { NarrativePickOutputSchema, type NarrativePickOutput } from "./schemas.js";
-import type { Hero } from "@vigil/db";
+import type { Hero } from "@/db/index.js";
 
 const narrativePickAgent = new Agent({
   name: "NarrativePickAgent",

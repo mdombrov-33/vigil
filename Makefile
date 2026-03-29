@@ -21,9 +21,6 @@ logs:
 logs-backend:
 	docker compose logs -f backend
 
-logs-mcp:
-	docker compose logs -f mcp-server
-
 logs-db:
 	docker compose logs -f postgres
 
@@ -32,13 +29,14 @@ ps:
 
 # Example: make generate name=initial_schema
 generate:
-	cd packages/db && npx drizzle-kit generate --name $(name)
+	cd backend && npx drizzle-kit generate --name $(name)
 
 migrate:
 	docker compose restart backend
 
+# Run inside the container since it needs DATABASE_URL from the env
 seed:
-	docker compose exec backend npx tsx ../packages/db/src/seed/index.ts
+	docker compose exec backend npx tsx src/db/seed/index.ts
 
 studio:
-	cd packages/db && npx drizzle-kit studio
+	cd backend && npx drizzle-kit studio

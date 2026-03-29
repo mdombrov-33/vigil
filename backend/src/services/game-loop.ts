@@ -1,4 +1,4 @@
-import { db, incidents } from "@vigil/db";
+import { db, incidents } from "@/db/index.js";
 import { and, eq, inArray, lt } from "drizzle-orm";
 import { getActiveSessions, send, log } from "@/sse/manager.js";
 import { dockCityHealth } from "@/services/city-health.js";
@@ -18,9 +18,9 @@ export function registerSession(sessionId: string) {
   }
 }
 
-export function startGameLoop() {
+export function startIncidentScheduler() {
   console.log(
-    `[game-loop] started — spawn interval: ${Math.round(SPAWN_INTERVAL_MS / 1000)}s`,
+    `[incident-scheduler] started — spawn interval: ${Math.round(SPAWN_INTERVAL_MS / 1000)}s`,
   );
 
   setInterval(async () => {

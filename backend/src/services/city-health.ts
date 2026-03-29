@@ -1,4 +1,4 @@
-import { db, sessions } from "@vigil/db";
+import { db, sessions } from "@/db/index.js";
 import { eq, sql } from "drizzle-orm";
 import { send } from "@/sse/manager.js";
 
