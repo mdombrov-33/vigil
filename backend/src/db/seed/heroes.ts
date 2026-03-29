@@ -12,7 +12,7 @@ import type { NewHero } from "../schema.js";
 const baseUrl = process.env.PORTRAITS_BASE_URL ?? "";
 
 function withPortraits(hero: NewHero & { alias: string }): NewHero {
-  const key = hero.alias.toLowerCase();
+  const key = hero.alias.toLowerCase().split(" ").pop()!;
   return {
     ...hero,
     portraitUrl: `${baseUrl}/${key}-healthy.webp`,
