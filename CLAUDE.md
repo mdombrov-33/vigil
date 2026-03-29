@@ -325,6 +325,147 @@ Comic book aesthetic, dark theme.
 
 ---
 
+## Frontend Architecture
+
+### Libraries
+
+| Library | Role |
+|---|---|
+| Next.js App Router | Framework |
+| Tailwind CSS | Styling — stylized dark aesthetic done manually |
+| TanStack Query | Server state — initial hydration only, SSE drives updates |
+| Zustand | Client game state — session, incidents, log, interrupt, health/score |
+| Magic UI | Specific animated components: number counters, shimmer effects, text animations |
+| MVP Blocks | Card/modal shells as starting point, heavily customized |
+| vault66-crt-effect | CRT/terminal effect wrapping the SDN Comms log panel — scanlines, amber glow, sweep line |
+
+The city map is **not** a real map library. It's a static background image (generated via Replicate — dark aerial city, noir/rain aesthetic) with incident pins overlaid at absolute % positions. No map SDK, no CSS grid — just an `<img>` and positioned elements on top.
+
+### State Strategy
+
+**TanStack Query** handles:
+- `GET /api/heroes` — initial load + manual refetch (needed for stat bars in dispatch modal)
+- `GET /api/sessions/:id` — initial session state
+- `GET /api/incidents?sessionId=` — hydrate map on load
+
+**Zustand** (`stores/gameStore.ts`) holds everything that SSE writes to:
+- `sessionId`
+- `incidents[]` — active map pins, updated by `incident:new` / `incident:expired`
+- `logEntries[]` — append-only, fed by `log` SSE events
+- `interruptState` — `{ incidentId, missionId, topHeroId, options } | null`
+- `cityHealth`, `score` — fed by `session:update`
+- `heroStates` — map of heroId → `{ availability, health, cooldownUntil }`, fed by `hero:state_update`
+
+**`useSSE(sessionId)`** hook — opens `EventSource`, writes to Zustand on every event. Runs once when session is active.
+
+### Component Tree
+
+```
+app/
+  page.tsx                    # Session gate — create or resume session, render game
+  layout.tsx
+components/
+  game/
+    GameLayout.tsx            # Map + LogPanel + RosterBar layout
+    CityMap.tsx               # Dark city grid, renders IncidentPin per active incident
+    IncidentPin.tsx           # Pin with danger level color, expiry countdown, pulsing if interrupt pending
+    LogPanel.tsx              # Right side, scrollable, SSE log entries fade in
+    RosterBar.tsx             # Fixed bottom strip of hero portraits
+    HeroPortrait.tsx          # Portrait + availability state + cooldown countdown
+  modals/
+    IncidentModal.tsx         # Opens on pin click — description, slot count, hero selection, dispatch
+    InterruptModal.tsx        # Opens on mission:interrupt — options list, hero-specific greyed if not sent
+    HeroDetailModal.tsx       # Portrait, stat bars, bio, missionsCompleted/Failed, status
+    GameOverModal.tsx         # Final score, city health, restart button
+  ui/                         # Shared primitives from Magic UI / MVP Blocks
+hooks/
+  useSSE.ts                   # EventSource → Zustand
+  useSession.ts               # TanStack Query wrapper for session
+  useHeroes.ts                # TanStack Query wrapper for heroes
+stores/
+  gameStore.ts                # Zustand store
+types/
+  api.ts                      # Frontend types matching backend API responses
+```
+
+### Aesthetic & Layout Vision
+
+Reference feel: **This Is the Police** / **Dispatch** — a real ops center under pressure, not a web dashboard. The player is a dispatcher watching a city actively going wrong.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  VIGIL SDN          ▓▓▓▓▓▓▓▓▓▓░░  87 HP      SCORE: 240   │  ← minimal header
+├──────────────────────────────────────┬──────────────────────┤
+│                                      │                      │
+│                                      │  SDN COMMS           │
+│         CITY MAP                     │  ──────────────────  │
+│    (generated aerial image,          │  > Analyzing...      │
+│     dark, rain, neon)                │  > Static + Duchess  │
+│                                      │  > en route          │
+│   ◉ Kestrel Hub    ◉ Blackwell       │  > ON SCENE          │
+│         ◉ Calder Annex               │  > FAILURE           │
+│                                      │  > Eval 3/10 poor    │
+│                                      │  > Force excessive   │
+│                                      │                      │
+│                                      │  [amber mono text,   │
+│                                      │   typewriter in,     │
+│                                      │   scanline overlay]  │
+├──────────────────────────────────────┴──────────────────────┤
+│  ROSTER                                                      │
+│  [Ironwall]  [Static★]  [Boom]  [Veil]  [Rex]  [Fracture]  │
+│  available   DEPLOYED   :28s    available  OFFLINE  :07s    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Map** — takes ~65-70% of screen. Generated aerial city image (Replicate), dark noir at night. 15-20 fixed x/y % positions defined in code — these are anonymous gameplay slots, not named locations. Incident pins are colored pulsing orbs placed at whichever slot is free. Pin colors: green (danger 1) / yellow (danger 2) / red (danger 3). When interrupt fires, pin switches to fast strobe. Pins drop in with an expanding ring on arrival, fade out on expiry.
+
+**SDN Comms log** — right side panel wrapped in `vault66-crt-effect` (`vt100` or `dos` preset, amber theme, light scanlines). Monospace text on near-black. Lines typewrite in one character at a time. Color-coded: neutral for log, red for failure, green for success, yellow for eval notes. The CRT sweep line effect triggers naturally as new entries arrive.
+
+**Roster bar** — fixed bottom, inspired by This Is the Police / Dispatch. Hero portrait cards in a horizontal strip. Each card shows:
+- Portrait (from `portraitUrl` DB field, already seeded)
+- Alias below
+- Status overlay: clean = available, pulsing border = deployed, greyed + countdown ring = resting, red OFFLINE stamp = down
+- Clicking opens HeroDetailModal
+
+**Incident modal** — slides in from the pin's position on the map (not a generic centered popup). Mission briefing style: dark background, the incident title in bold, description in a worn typeface, hero slot indicators (empty circles = slots). Player clicks portraits from the roster to fill slots, dispatch button activates when at least one hero selected.
+
+**Interrupt modal** — the tense moment. Screen dims. Options appear as stark choices, text only. Hero-specific option shows that hero's portrait beside the text — greyed + locked icon if they weren't dispatched (player sees what they missed). After choosing: stat icons burn in on all options simultaneously.
+
+**City health bar** — top of screen. Segmented bar styled like a city skyline silhouette. Segments go dark as health drops. Below ~30% the remaining segments flicker.
+
+**Colors:**
+- Background: `#08080f`
+- Panel borders: `#1e1e2e`
+- Danger 1 (minor): `#22c55e`
+- Danger 2 (standard): `#eab308`
+- Danger 3 (major): `#ef4444`
+- Log text: `#fbbf24` (amber)
+- Deployed highlight: `#3b82f6`
+
+### City Locations
+
+15-20 fixed positions spread across the map image, defined as `{ id, x, y }[]` in `frontend/src/lib/cityLocations.ts`. These are pure gameplay slots — no names, no districts. When a new incident arrives the frontend picks the first unoccupied slot and places the pin there. The backend has no concept of location; placement is entirely a frontend concern.
+
+### Hero Portraits
+
+`portraitUrl` field already exists on the hero DB record. Portraits already seeded. Roster bar and modals pull from this field directly.
+
+### SSE → UI Event Map
+
+| SSE Event | UI Effect |
+|---|---|
+| `incident:new` | New pin drops onto map with animation |
+| `incident:expired` | Pin disappears, brief red flash |
+| `mission:interrupt` | Active pin starts fast pulse, interrupt modal queued |
+| `mission:interrupt:resolved` | Stat icons animate in on all options |
+| `mission:outcome` | Outcome badge appears on pin briefly before it fades |
+| `hero:state_update` | Portrait transitions state, cooldown countdown starts |
+| `session:update` | City health counter animates to new value |
+| `game:over` | Game over modal slides in |
+| `log` | New entry fades into log panel |
+
+---
+
 ## Future
 
 - Auth + leaderboards
