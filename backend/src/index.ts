@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db } from "@/db/index.js";
 import { sendJson } from "@/utils/response";
@@ -18,6 +19,7 @@ initTracing();
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
+app.use(cors());
 app.use(express.json());
 
 app.get("/api/healthz", (_req, res) => {

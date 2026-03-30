@@ -1,6 +1,5 @@
 import { Router, Request, Response } from "express";
 import { register } from "@/sse/manager";
-import { registerSession } from "@/services/game-loop";
 
 const router = Router();
 
@@ -19,7 +18,6 @@ router.get("/", (req: Request, res: Response) => {
   res.flushHeaders();
 
   register(sessionId, res);
-  registerSession(sessionId);
 
   // Keep-alive ping every 30s to prevent proxy timeouts
   const keepAlive = setInterval(() => {

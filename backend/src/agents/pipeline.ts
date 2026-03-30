@@ -65,9 +65,10 @@ export async function runIncidentCreationPipeline(
   console.log(
     `[incident-pipeline] stat recommended: ${recommended.map((h) => h.alias).join(", ")}`,
   );
-  log(sessionId, `SDN recommendation: ${recommended.map((h) => h.alias).join(", ")}`);
 
-  const expiresAt = new Date(Date.now() + triage.expiryDuration * 1000);
+  // Enforce 3-minute minimum — pipeline itself takes 20-40s so short AI-set values expire before player sees them
+  const MIN_EXPIRY_S = 180;
+  const expiresAt = new Date(Date.now() + Math.max(MIN_EXPIRY_S, triage.expiryDuration) * 1000);
   const [incident] = await db
     .insert(incidents)
     .values({
@@ -98,6 +99,7 @@ export async function runIncidentCreationPipeline(
     slotCount: incident.slotCount,
     dangerLevel: incident.dangerLevel,
     hasInterrupt: incident.hasInterrupt,
+    createdAt: incident.createdAt,
     expiresAt: incident.expiresAt,
   });
 
@@ -143,6 +145,7 @@ export async function runMissionPipeline(
     .update(incidents)
     .set({ status: "active" })
     .where(eq(incidents.id, incidentId));
+  send(sessionId, "incident:active", { incidentId });
   log(sessionId, `${dispatchedHeroes.map((h) => h.alias).join(" + ")} on scene`);
 
   // Mission in progress
@@ -159,6 +162,7 @@ export async function runMissionPipeline(
       incidentId,
       missionId: mission.id,
       topHeroId: incident.topHeroId,
+      heroIds,
       options: options.map((o) => ({
         id: o.id,
         text: o.text,
@@ -305,7 +309,8 @@ export async function runMissionPipeline(
     incidentId,
     missionId: mission.id,
     outcome,
-    heroes: dispatchedHeroes.map((h) => h.alias),
+    title: incident.title,
+    heroes: dispatchedHeroes.map((h) => ({ heroId: h.id, alias: h.alias })),
     evalScore: evalResult.score,
     evalVerdict: evalResult.verdict,
     evalPostOpNote: evalResult.postOpNote,

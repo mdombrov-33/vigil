@@ -22,13 +22,13 @@ export async function addScore(
     .where(eq(sessions.id, sessionId));
 
   const [session] = await db
-    .select({ score: sessions.score })
+    .select({ cityHealth: sessions.cityHealth, score: sessions.score })
     .from(sessions)
     .where(eq(sessions.id, sessionId))
     .limit(1);
 
   console.log(`[score] +${points} (${verdict}) → ${session?.score}`);
-  send(sessionId, "session:update", { score: session?.score });
+  send(sessionId, "session:update", { cityHealth: session?.cityHealth ?? 100, score: session?.score ?? 0 });
 }
 
 export async function dockCityHealth(

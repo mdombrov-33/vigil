@@ -7,14 +7,16 @@ import { runIncidentCreationPipeline } from "@/agents/pipeline.js";
 const MAX_ACTIVE_INCIDENTS = 4;
 const SPAWN_INTERVAL_MS = 45_000 + Math.random() * 15_000; // 45–60s, randomized once at startup
 
-// Track last spawn time per session.
-// Initialized to Date.now() when session connects so the first auto-spawn
-// waits a full interval rather than firing immediately.
 const lastSpawn = new Map<string, number>();
+const pausedSessions = new Set<string>();
+
+export function pauseSession(sessionId: string) { pausedSessions.add(sessionId); }
+export function resumeSession(sessionId: string) { pausedSessions.delete(sessionId); }
 
 export function registerSession(sessionId: string) {
   if (!lastSpawn.has(sessionId)) {
-    lastSpawn.set(sessionId, Date.now());
+    // Set to past so first spawn happens on the next tick (~5s) rather than after a full interval
+    lastSpawn.set(sessionId, Date.now() - SPAWN_INTERVAL_MS + 10_000);
   }
 }
 
@@ -32,6 +34,7 @@ export function startIncidentScheduler() {
 }
 
 async function runLoopTick(sessionId: string) {
+  if (pausedSessions.has(sessionId)) return;
   await Promise.all([checkExpiry(sessionId), checkSpawn(sessionId)]);
 }
 

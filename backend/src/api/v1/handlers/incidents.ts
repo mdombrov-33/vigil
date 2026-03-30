@@ -1,12 +1,13 @@
 import { Request, Response } from "express";
-import { db, heroes, incidents, missions } from "@/db/index.js";
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { db, heroes, incidents, missions, missionHeroes } from "@/db/index.js";
+import { and, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { sendJson } from "@/utils/response";
 import {
   runIncidentCreationPipeline,
   runMissionPipeline,
 } from "@/agents/pipeline";
 import { resolveChoice } from "@/services/interrupt-gate";
+import { send } from "@/sse/manager.js";
 import type { InterruptOption } from "@/services/outcome";
 
 // GET /api/v1/incidents?sessionId=xxx
@@ -156,6 +157,18 @@ export async function dispatchHeroes(req: Request, res: Response) {
       .where(eq(incidents.id, incidentId)),
   ]);
 
+  // Notify frontend immediately — don't wait for pipeline
+  const sessionId = incident.sessionId;
+  for (const hero of dispatchedHeroes) {
+    send(sessionId, "hero:state_update", {
+      heroId: hero.id,
+      alias: hero.alias,
+      availability: "on_mission",
+      health: hero.health,
+      cooldownUntil: hero.cooldownUntil?.toISOString() ?? null,
+    });
+  }
+
   // Fire pipeline in background — client gets response immediately
   runMissionPipeline(incidentId, heroIds).catch((err) =>
     console.error(`[mission-pipeline] error for incident ${incidentId}:`, err),
@@ -254,6 +267,58 @@ export async function submitInterruptChoice(req: Request, res: Response) {
   }
 
   sendJson(res, 200, { ok: true, choiceId });
+}
+
+// GET /api/v1/incidents/:id/debrief
+// Returns mission outcome + per-hero reports for the debrief modal.
+export async function getDebrief(req: Request, res: Response) {
+  const incidentId = req.params.id as string;
+
+  const [incident] = await db
+    .select()
+    .from(incidents)
+    .where(eq(incidents.id, incidentId))
+    .limit(1);
+
+  if (!incident) {
+    sendJson(res, 404, { error: "Incident not found" });
+    return;
+  }
+
+  // Find the most recently completed mission for this incident
+  const [mission] = await db
+    .select()
+    .from(missions)
+    .where(and(eq(missions.incidentId, incidentId), isNotNull(missions.completedAt)))
+    .orderBy(desc(missions.completedAt))
+    .limit(1);
+
+  if (!mission) {
+    sendJson(res, 404, { error: "No completed mission found" });
+    return;
+  }
+
+  // Fetch per-hero reports joined with hero profile
+  const heroRows = await db
+    .select({
+      heroId: heroes.id,
+      alias: heroes.alias,
+      portraitUrl: heroes.portraitUrl,
+      report: missionHeroes.report,
+    })
+    .from(missionHeroes)
+    .innerJoin(heroes, eq(missionHeroes.heroId, heroes.id))
+    .where(eq(missionHeroes.missionId, mission.id));
+
+  sendJson(res, 200, {
+    incidentId: incident.id,
+    title: incident.title,
+    outcome: mission.outcome,
+    evalScore: mission.evalScore,
+    evalVerdict: mission.evalVerdict,
+    evalPostOpNote: mission.evalPostOpNote,
+    heroes: heroRows,
+  });
 }
 
 // POST /api/v1/incidents/:id/acknowledge

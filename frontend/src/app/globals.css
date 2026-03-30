@@ -1,0 +1,97 @@
+@import "tailwindcss";
+@import "vault66-crt-effect/dist/vault66-crt-effect.css";
+
+:root {
+  --background: #08080f;
+  --foreground: #fbbf24;
+
+  /* Panel surfaces */
+  --panel: #0a0a12;
+  --panel-raised: #0f0f1a;
+  --border: #1e1e2e;
+  --border-subtle: #141420;
+
+  /* Text hierarchy — use these instead of #ffffffXX */
+  --text-amber: #fbbf24;   /* primary headings, CTAs */
+  --text-primary: #c8c8dc; /* readable body text */
+  --text-secondary: #7070a0; /* secondary labels */
+  --text-muted: #404060;   /* very dim metadata */
+
+  /* Status */
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+  --info: #3b82f6;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-mono), "Courier New", monospace;
+}
+
+/* Hide scrollbars but allow scrolling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Roster scrollbar — always visible thin amber strip */
+.roster-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #fbbf2450 #1e1e2e;
+}
+.roster-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.roster-scroll::-webkit-scrollbar-track {
+  background: #1e1e2e;
+}
+.roster-scroll::-webkit-scrollbar-thumb {
+  background: #fbbf2450;
+  border-radius: 2px;
+}
+.roster-scroll::-webkit-scrollbar-thumb:hover {
+  background: #fbbf2480;
+}
+
+/* Deployed portrait scan line */
+@keyframes scanline {
+  0%   { top: 0%; }
+  100% { top: 100%; }
+}
+
+/* Force CRT wrapper to fill parent height */
+.log-crt-wrapper,
+.log-crt-wrapper > div {
+  height: 100%;
+}
