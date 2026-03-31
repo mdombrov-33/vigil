@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-03-29
+> Last updated: 2026-03-31
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -56,8 +56,18 @@ vigil/
 ├── frontend/
 │   └── src/
 │       ├── app/
+│       │   ├── page.tsx           # Server redirect → /shift
+│       │   ├── layout.tsx
+│       │   ├── providers.tsx
+│       │   └── shift/
+│       │       ├── page.tsx       # Pre-shift: map + start screen, no session yet
+│       │       └── [sessionId]/
+│       │           └── page.tsx   # Active game — session ID in URL
 │       ├── components/
-│       └── types/
+│       ├── hooks/
+│       ├── stores/
+│       ├── types/
+│       └── lib/
 └── docker-compose.yml
 ```
 
@@ -67,6 +77,18 @@ vigil/
 - Services are pure logic — no DB calls except `city-health.ts` and `game-loop.ts` which coordinate cross-cutting concerns
 - Agents are orchestrated by `pipeline.ts` — no agent calls another agent directly
 - MCP: `router → tool → handler → db` — tools never touch DB directly
+
+---
+
+## Routing
+
+| Route | Purpose |
+|---|---|
+| `/` | Server redirect to `/shift` |
+| `/shift` | Pre-shift landing — map visible, start screen overlay, no session yet. Pressing "Start Shift" creates a session and navigates to `/shift/:id` |
+| `/shift/:sessionId` | Active game — session ID in URL. On mount: boots backend game loop, connects SSE, resets store. End shift → back to `/shift` |
+
+Session ID is internal plumbing — never shown to the user, just lives in the URL for bookmarking/resuming.
 
 ---
 
@@ -110,50 +132,53 @@ vigil/
 3. SSE: log "en route"
 4. sleep(12s) — travel time
 5. UPDATE incident status → active
-6. SSE: log "on scene"
+6. SSE: incident:active (pin label updates to ON SCENE)
+7. SSE: log "on scene"
 
 TYPE 1 — No interrupt:
-  7a. sleep(missionDuration)
-  7b. getMissionOutcome() — quadratic coverage formula
+  8a. sleep(missionDuration)
+  8b. getMissionOutcome() — quadratic coverage formula
 
 TYPE 2 — Interrupt:
-  7a. sleep(missionDuration / 2)
-  7b. SSE: mission:interrupt — options with text only, no stat info, topHeroId included
-  7c. waitForChoice(missionId, remainingMs) — in-memory promise, player POSTs choice
-  7d. If timeout → auto-fail
-  7e. getInterruptOutcome() — stat check or hero-specific check
+  8a. sleep(missionDuration / 2)
+  8b. SSE: mission:interrupt — options with text only (no stat info), topHeroId included
+  8c. waitForChoice(missionId, sessionId, remainingMs) — pause-aware polling loop
+  8d. If timeout → auto-fail
+  8e. getInterruptOutcome() — stat check or hero-specific check
+  8f. SSE: mission:interrupt:resolved — full options with requiredStat/requiredValue, outcome, combinedValue
 
-8.  If failure → dockCityHealth(-10)
-9.  UPDATE incident → completed, heroes → missionsCompleted/Failed counters
-10. HeroReportAgent × N                              [parallel]
-11. ReflectionAgent × N                              [parallel]
-12. UPDATE missionHeroes.report per hero
-13. UPDATE missions.outcome + completedAt
-14. UPDATE heroes → resting + cooldownUntil
-15. SSE: hero:state_update × N
-16. EvalAgent → score/verdict/explanation/postOpNote
-17. If success → addScore() based on verdict
-18. UPDATE missions eval columns
-19. SSE: mission:outcome + log with eval score
+9.  If failure → dockCityHealth(-10)
+10. UPDATE incident → debriefing, heroes → missionsCompleted/Failed counters
+11. HeroReportAgent × N                              [parallel]
+12. ReflectionAgent × N                              [parallel]
+13. UPDATE missionHeroes.report per hero
+14. UPDATE missions.outcome + completedAt
+15. UPDATE heroes → resting + cooldownUntil
+16. SSE: hero:state_update × N
+17. EvalAgent → score/verdict/explanation/postOpNote
+18. If success → addScore() based on verdict
+19. UPDATE missions eval columns
+20. SSE: mission:outcome + log with eval score
 ```
 
 ---
 
 ## SSE Events
 
-One persistent connection per session: `GET /api/sse?sessionId=xxx`
+One persistent connection per session: `GET /api/v1/sse?sessionId=xxx`
 
-| Event                        | When                              | Payload                                                                                     |
-| ---------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------- |
-| `log`                        | Throughout pipeline               | `{ message }`                                                                               |
-| `incident:new`               | Incident pipeline complete        | `{ incidentId, title, description, slotCount, dangerLevel, hasInterrupt, expiresAt }`       |
-| `mission:interrupt`          | Halfway through missionDuration   | `{ incidentId, missionId, topHeroId, options }` (text only, no stats)                       |
-| `mission:interrupt:resolved` | After player choice               | `{ incidentId, missionId, chosenOptionId, options }` (full options with stat info revealed) |
-| `mission:outcome`            | Mission pipeline complete         | `{ incidentId, missionId, outcome, heroes, evalScore, evalVerdict, evalPostOpNote }`        |
-| `hero:state_update`          | After hero state changes          | `{ heroId, alias, availability, health, cooldownUntil }`                                    |
-| `session:update`             | After city health or score change | `{ cityHealth, score }`                                                                     |
-| `incident:expired`           | Expiry timer fires                | `{ incidentId }`                                                                            |
-| `game:over`                  | cityHealth reaches 0              | `{ finalScore }`                                                                            |
+| Event                        | When                              | Payload                                                                                                          |
+| ---------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `log`                        | Throughout pipeline               | `{ message }`                                                                                                    |
+| `incident:new`               | Incident pipeline complete        | `{ incidentId, title, description, slotCount, dangerLevel, hasInterrupt, createdAt, expiresAt }`                 |
+| `incident:active`            | After travel sleep                | `{ incidentId }`                                                                                                 |
+| `incident:expired`           | Expiry timer fires                | `{ incidentId }`                                                                                                 |
+| `mission:interrupt`          | Halfway through missionDuration   | `{ incidentId, missionId, topHeroId, heroIds, options }` (text only, no stats)                                   |
+| `mission:interrupt:resolved` | After player choice               | `{ incidentId, missionId, chosenOptionId, outcome, combinedValue, options }` (full options with stat info)       |
+| `mission:outcome`            | Mission pipeline complete         | `{ incidentId, missionId, outcome, title, heroes, evalScore, evalVerdict, evalPostOpNote }`                      |
+| `hero:state_update`          | After hero state changes          | `{ heroId, alias, availability, health, cooldownUntil }`                                                         |
+| `session:update`             | After city health or score change | `{ cityHealth, score }`                                                                                          |
+| `game:over`                  | cityHealth reaches 0              | `{ finalScore }`                                                                                                 |
 
 **SSE manager** (`backend/src/sse/manager.ts`): `send(sessionId, event, data)` for session-scoped events, `broadcast(event, data)` for global (cooldown resolver uses broadcast since heroes are global).
 
@@ -161,12 +186,20 @@ One persistent connection per session: `GET /api/sse?sessionId=xxx`
 
 ## Game Loop (`services/game-loop.ts`)
 
-Runs every 5s per active SSE session:
+Runs every 5s per active SSE session. Skips entirely if session is paused.
 
 - **Expiry check** — finds `pending` incidents where `expiresAt < now`, marks `expired`, docks -15 city health, emits `incident:expired`
 - **Spawn check** — auto-generates new incident every 45-60s if active incidents < 4
 
+Exports: `pauseSession(id)`, `resumeSession(id)`, `isSessionPaused(id)` — used by pause/resume API endpoints and the interrupt gate.
+
 **Cooldown resolver** (`services/cooldown-resolver.ts`) — separate 5s interval, finds `resting` heroes where `cooldownUntil <= now` AND `cooldownUntil IS NOT NULL` (excludes `down` heroes), flips to `available`, broadcasts `hero:state_update`.
+
+---
+
+## Interrupt Gate (`services/interrupt-gate.ts`)
+
+`waitForChoice(missionId, sessionId, timeoutMs)` — pause-aware. Instead of a plain `setTimeout`, polls every 200ms and only increments elapsed time when `isSessionPaused(sessionId)` is false. This means the interrupt timer freezes while the player has any modal open.
 
 ---
 
@@ -187,6 +220,7 @@ Triage sets only 1–3 relevant stats. All-stat padding wrecks the formula by av
 
 - `isHeroSpecific: true` → success if `topHeroId` was in dispatched heroes, else failure
 - Stat check → `combinedStat >= requiredValue` → success/failure (deterministic, no randomness)
+- `combinedValue` (the actual combined stat) sent in `mission:interrupt:resolved` for the roll animation
 
 **Eval** judges dispatch quality independently of interrupt outcome — they test different skills.
 
@@ -232,28 +266,36 @@ Agent (backend) → MCPServerStreamableHttp → localhost:{PORT}/mcp → handler
 
 ## API Routes
 
-| Method | Path                              | Description                                                       |
-| ------ | --------------------------------- | ----------------------------------------------------------------- |
-| POST   | `/api/v1/sessions`                | Create session                                                    |
-| GET    | `/api/v1/sessions/:id`            | Get session state (cityHealth, score)                             |
-| GET    | `/api/v1/incidents?sessionId=`    | Active incidents for map (pending/en_route/active)                |
-| GET    | `/api/v1/incidents/:id`           | Single incident detail (interrupt options hidden until active)    |
-| POST   | `/api/v1/incidents/generate`      | Manually trigger incident creation pipeline                       |
-| POST   | `/api/v1/incidents/:id/dispatch`  | Dispatch heroes — locks immediately, pipeline fires in background |
+| Method | Path                                | Description                                                       |
+| ------ | ----------------------------------- | ----------------------------------------------------------------- |
+| POST   | `/api/v1/sessions`                  | Create session                                                    |
+| GET    | `/api/v1/sessions/:id`              | Get session state (cityHealth, score)                             |
+| POST   | `/api/v1/sessions/:id/start`        | Start game loop, reset heroes + stale incidents for this session  |
+| POST   | `/api/v1/sessions/:id/pause`        | Pause game loop + interrupt timer for this session                |
+| POST   | `/api/v1/sessions/:id/resume`       | Resume game loop + interrupt timer                                |
+| GET    | `/api/v1/incidents?sessionId=`      | Active incidents for map (pending/en_route/active/debriefing)     |
+| GET    | `/api/v1/incidents/:id`             | Single incident detail                                            |
+| POST   | `/api/v1/incidents/generate`        | Manually trigger incident creation pipeline                       |
+| POST   | `/api/v1/incidents/:id/dispatch`    | Dispatch heroes — locks immediately, pipeline fires in background |
 | POST   | `/api/v1/incidents/:id/interrupt`   | Submit interrupt choice                                           |
-| POST   | `/api/v1/incidents/:id/acknowledge` | Acknowledge debrief — moves incident from debriefing → completed  |
-| GET    | `/api/v1/heroes`                  | All heroes with current state                                     |
-| GET    | `/api/v1/sse?sessionId=`          | Open SSE stream                                                   |
+| GET    | `/api/v1/incidents/:id/debrief`     | Hero reports for debrief modal                                    |
+| POST   | `/api/v1/incidents/:id/acknowledge` | Move incident debriefing → completed, clear from map              |
+| GET    | `/api/v1/heroes`                    | All heroes with current state                                     |
+| GET    | `/api/v1/sse?sessionId=`            | Open SSE stream                                                   |
 
 ---
 
 ## Hero Stats
 
-- **Threat** — physical force (1–10)
-- **Grit** — durability (1–10)
-- **Presence** — charisma / crowd control (1–10)
-- **Edge** — intelligence / tech (1–10)
-- **Tempo** — speed / reflexes (1–10)
+Defined in `frontend/src/lib/statMeta.ts` — single source of truth for keys, labels, abbreviations, colors, and lucide icons used everywhere stats are displayed.
+
+| Stat     | Abbr | Color     | Icon    | Meaning                    |
+| -------- | ---- | --------- | ------- | -------------------------- |
+| Threat   | THR  | `#ef4444` | Flame   | Physical force             |
+| Grit     | GRT  | `#f97316` | Shield  | Durability                 |
+| Presence | PRS  | `#a78bfa` | Eye     | Charisma / crowd control   |
+| Edge     | EDG  | `#60a5fa` | Cpu     | Intelligence / tech        |
+| Tempo    | TMP  | `#34d399` | Zap     | Speed / reflexes           |
 
 ## Hero Status
 
@@ -279,7 +321,7 @@ Agent (backend) → MCPServerStreamableHttp → localhost:{PORT}/mcp → handler
 | 8   | Kai Park       | Null         | 5      | 6    | 4        | 8    | 7     |
 | 9   | Diana Vance    | Duchess      | 8      | 6    | 5        | 9    | 6     |
 
-Full `personality` (HeroReportAgent system prompt) and `bio` (NarrativePickAgent + DispatcherAgent reasoning) in `packages/db/src/seed/heroes/<alias>.ts`. Bio is dispatcher quick-reference style — power mechanics, what makes them the obvious pick.
+Full `personality` (HeroReportAgent system prompt) and `bio` (NarrativePickAgent + DispatcherAgent reasoning) in `packages/db/src/seed/heroes/<alias>.ts`.
 
 ---
 
@@ -288,41 +330,41 @@ Full `personality` (HeroReportAgent system prompt) and `bio` (NarrativePickAgent
 Comic book aesthetic, dark theme.
 
 ```
-┌──────────────────────────────────────┬──────────────────┐
-│                                      │  SDN LOG         │
-│           CITY MAP                   │────────────────  │
-│                                      │ Analyzing...     │
-│  [●] Power Surge   [●] Bank Job      │ Incident:        │
-│  [●] Collapse                        │   Power Surge    │
-│                                      │ Rec: Static      │
-│  pins colored by danger level        │ Eval: 9/10       │
-│  pulsing = interrupt pending         │   good call      │
-│                                      │ [scrollable]     │
-├──────────────────────────────────────┤                  │
-│  ROSTER BAR — always visible         │                  │
-│  [portrait] [portrait] [portrait] ...                   │
-│  Available  Resting:12s  On mission  Injured:45s  Down  │
-└──────────────────────────────────────┴──────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  VIGIL SDN          ▓▓▓▓▓▓▓▓▓▓░░  87 HP      SCORE: 240   │  ← header (always visible)
+├──────────────────────────────────────┬──────────────────────┤
+│                                      │                      │
+│         CITY MAP                     │  SDN COMMS           │
+│    (static aerial image)             │  ──────────────────  │
+│                                      │  > Analyzing...      │
+│   ◉ pin   ◉ pin   ◉ pin              │  > Static en route   │
+│                                      │  > FAILURE           │
+│                                      │  > Eval 3/10 poor    │
+│                                      │  [CRT effect, amber] │
+├──────────────────────────────────────┴──────────────────────┤
+│  ROSTER (hidden until shift starts)                          │
+│  [Ironwall]  [Static]  [Boom]  [Veil]  [Rex]  [Fracture]   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Incident Modal:** title + description (no stat list, no danger number), hero slots, dispatch button. Roster shows stat bars while modal is open.
+**Incident Modal:** two-column layout — description left, hero slots + dispatch button right. Backdrop click or X closes. Single "Dispatch" button — no confirm step.
 
-**Interrupt Modal:** replaces dispatch UI mid-mission. Options text only. Hero-specific option shows portrait, greyed + unselectable if that hero wasn't sent. After choice: stat icons revealed on all options.
+**Interrupt Modal:** auto-opens when `mission:interrupt` SSE arrives (game pauses automatically). Single click on an option submits immediately — no confirm step. After choice: stat icons slide in on all options; chosen option shows a count-up roll animation (number climbs to combined value, then color shifts green/red). Auto-closes after 7 seconds. X button for early dismiss. If a second interrupt fires while one is pending, it queues — shown after the current one closes.
 
-**Hero Card:** portrait, name/alias, stat bars, bio, missionsCompleted/missionsFailed, current status.
+**Debrief Modal:** opens on pin click when incident is in `debriefing` state. Shows eval score, hero field reports (tabbed if multiple heroes). Click backdrop or X to dismiss — no explicit confirm button.
 
----
+**Hero Detail Modal:** portrait, stat bars with icons, bio, missionsCompleted/Failed, current status. Opens from roster (always) or from incident modal hero click. Pauses game while open.
 
-## Game Mode (MVP)
+**City health bar** — top of screen. Segmented bar. Below ~30% segments flicker.
 
-- Session runs until city health hits 0
-- No auth — session stored in DB, ID passed by client
-- Spawn pressure: new incident every ~45–60s, max 4 on map simultaneously
-- Danger level never shown as a number — only as pin color (green/yellow/red)
-
-**Incident lifecycle:** `pending` → `en_route` → `active` → `debriefing` → `completed` | `expired`
-
-`debriefing` — mission finished, pin stays on map waiting for player to click and read the debrief. POST `/:id/acknowledge` moves it to `completed` and clears the pin.
+**Colors:**
+- Background: `#08080f`
+- Panel borders: `#1e1e2e`
+- Danger 1 (minor): `#22c55e` (green)
+- Danger 2 (standard): `#f97316` (orange)
+- Danger 3 (major): `#ef4444` (red)
+- Log text: `#fbbf24` (amber)
+- Deployed highlight: `#3b82f6`
 
 ---
 
@@ -334,143 +376,125 @@ Comic book aesthetic, dark theme.
 |---|---|
 | Next.js App Router | Framework |
 | Tailwind CSS | Styling — stylized dark aesthetic done manually |
-| TanStack Query | Server state — initial hydration only, SSE drives updates |
-| Zustand | Client game state — session, incidents, log, interrupt, health/score |
-| Magic UI | Specific animated components: number counters, shimmer effects, text animations |
-| MVP Blocks | Card/modal shells as starting point, heavily customized |
-| vault66-crt-effect | CRT/terminal effect wrapping the SDN Comms log panel — scanlines, amber glow, sweep line |
+| TanStack Query | Server state — heroes list (invalidated after mission:outcome), session hydration |
+| Zustand | Client game state — all SSE-driven state lives here |
+| @dnd-kit/core | Drag-and-drop for hero portraits into dispatch slots |
+| framer-motion | Modal animations, stat roll animation, pin transitions |
+| lucide-react | Stat icons (Flame, Shield, Eye, Cpu, Zap) |
+| vault66-crt-effect | CRT/scanline effect on the SDN Comms log panel |
 
-The city map is **not** a real map library. It's a static background image (generated via Replicate — dark aerial city, noir/rain aesthetic) with incident pins overlaid at absolute % positions. No map SDK, no CSS grid — just an `<img>` and positioned elements on top.
+### State (Zustand `stores/gameStore.ts`)
 
-### State Strategy
+```
+sessionId
+cityHealth, score
+incidents[]              — active map pins
+logEntries[]             — append-only SDN log
+heroStates               — Record<heroId, { availability, health, cooldownUntil }>
+interruptState           — active interrupt (null when none)
+interruptQueue[]         — queued interrupts if one is already active
+missionOutcomes          — Record<incidentId, MissionOutcomeState>
+uiPaused                 — true while any modal is open
+pausedDuration           — accumulated ms paused (used by TimerRing for freeze-without-jump)
+pausedSince              — timestamp when current pause started (null if not paused)
+gameOver, finalScore
+```
 
-**TanStack Query** handles:
-- `GET /api/v1/heroes` — initial load + manual refetch (needed for stat bars in dispatch modal)
-- `GET /api/v1/sessions/:id` — initial session state
-- `GET /api/v1/incidents?sessionId=` — hydrate map on load
+**Pause tracking:** `setUiPaused(true)` records `pausedSince = Date.now()`. `setUiPaused(false)` adds elapsed to `pausedDuration`, clears `pausedSince`. `TimerRing` uses `getEffectiveNow() = Date.now() - pausedDuration - inProgressPause` so rings freeze during modal opens without jumping on resume.
 
-**Zustand** (`stores/gameStore.ts`) holds everything that SSE writes to:
-- `sessionId`
-- `incidents[]` — active map pins, updated by `incident:new` / `incident:expired`
-- `logEntries[]` — append-only, fed by `log` SSE events
-- `interruptState` — `{ incidentId, missionId, topHeroId, options } | null`
-- `cityHealth`, `score` — fed by `session:update`
-- `heroStates` — map of heroId → `{ availability, health, cooldownUntil }`, fed by `hero:state_update`
-
-**`useSSE(sessionId)`** hook — opens `EventSource`, writes to Zustand on every event. Runs once when session is active.
+**Interrupt queue:** `setInterrupt` checks if an unresolved interrupt is already active — if so, pushes to `interruptQueue` instead of replacing. `clearInterrupt` dequeues the next one automatically.
 
 ### Component Tree
 
 ```
 app/
-  page.tsx                    # Session gate — create or resume session, render game
+  page.tsx                      # Server redirect → /shift
+  shift/
+    page.tsx                    # Pre-shift: GameLayout (shiftStarted=false) + StartScreen overlay
+    [sessionId]/
+      page.tsx                  # Active game — full DndContext + modals
   layout.tsx
+  providers.tsx
 components/
   game/
-    GameLayout.tsx            # Map + LogPanel + RosterBar layout
-    CityMap.tsx               # Dark city grid, renders IncidentPin per active incident
-    IncidentPin.tsx           # Pin with danger level color, expiry countdown, pulsing if interrupt pending
-    LogPanel.tsx              # Right side, scrollable, SSE log entries fade in
-    RosterBar.tsx             # Fixed bottom strip of hero portraits
-    HeroPortrait.tsx          # Portrait + availability state + cooldown countdown
+    GameLayout.tsx              # Header + map area + log panel + roster (roster hidden if !shiftStarted)
+    CityMap.tsx                 # Static image + IncidentPin per active incident
+    IncidentPin.tsx             # Danger color, SVG countdown ring, ACT NOW pulse for interrupt
+    LogPanel.tsx                # CRT-wrapped SDN Comms log
+    RosterBar.tsx               # Bottom strip of hero portraits
+    HeroPortrait.tsx            # Portrait + availability state + cooldown ring
+    CityHealthBar.tsx           # Segmented health bar in header
+    StartScreen.tsx             # Overlay shown before shift starts
   modals/
-    IncidentModal.tsx         # Opens on pin click — description, slot count, hero selection, dispatch
-    InterruptModal.tsx        # Opens on mission:interrupt — options list, hero-specific greyed if not sent
-    HeroDetailModal.tsx       # Portrait, stat bars, bio, missionsCompleted/Failed, status
-    GameOverModal.tsx         # Final score, city health, restart button
-  ui/                         # Shared primitives from Magic UI / MVP Blocks
+    IncidentModal.tsx           # Incident briefing, hero slot drag targets, dispatch
+    InterruptModal.tsx          # Interrupt options, stat roll animation, auto-close
+    DebriefModal.tsx            # Mission outcome, eval score, hero field reports
+    HeroDetailModal.tsx         # Hero profile with stat bars and icons
 hooks/
-  useSSE.ts                   # EventSource → Zustand
-  useSession.ts               # TanStack Query wrapper for session
-  useHeroes.ts                # TanStack Query wrapper for heroes
+  useSSE.ts                     # EventSource → Zustand writes
+  useSession.ts                 # TanStack Query for session state
+  useHeroes.ts                  # TanStack Query for heroes list
 stores/
-  gameStore.ts                # Zustand store
+  gameStore.ts
+lib/
+  statMeta.ts                   # STAT_META + STAT_META_BY_KEY — icons, colors, labels for all 5 stats
+  cityLocations.ts              # Fixed x/y % slot positions on map image
 types/
-  api.ts                      # Frontend types matching backend API responses
+  api.ts                        # Frontend types — all IDs are string (UUID)
 ```
 
-### Aesthetic & Layout Vision
+### City Map
 
-Reference feel: **This Is the Police** / **Dispatch** — a real ops center under pressure, not a web dashboard. The player is a dispatcher watching a city actively going wrong.
+Static background image (`/map.webp`, generated via Replicate — dark aerial city, noir aesthetic). 15-20 fixed `{ id, x, y }` positions in `lib/cityLocations.ts` — anonymous gameplay slots. Frontend picks the first unoccupied slot for each new incident. Backend has no concept of location.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  VIGIL SDN          ▓▓▓▓▓▓▓▓▓▓░░  87 HP      SCORE: 240   │  ← minimal header
-├──────────────────────────────────────┬──────────────────────┤
-│                                      │                      │
-│                                      │  SDN COMMS           │
-│         CITY MAP                     │  ──────────────────  │
-│    (generated aerial image,          │  > Analyzing...      │
-│     dark, rain, neon)                │  > Static + Duchess  │
-│                                      │  > en route          │
-│   ◉ Kestrel Hub    ◉ Blackwell       │  > ON SCENE          │
-│         ◉ Calder Annex               │  > FAILURE           │
-│                                      │  > Eval 3/10 poor    │
-│                                      │  > Force excessive   │
-│                                      │                      │
-│                                      │  [amber mono text,   │
-│                                      │   typewriter in,     │
-│                                      │   scanline overlay]  │
-├──────────────────────────────────────┴──────────────────────┤
-│  ROSTER                                                      │
-│  [Ironwall]  [Static★]  [Boom]  [Veil]  [Rex]  [Fracture]  │
-│  available   DEPLOYED   :28s    available  OFFLINE  :07s    │
-└─────────────────────────────────────────────────────────────┘
+### InterruptOption type
+
+```typescript
+interface InterruptOption {
+  id: string;
+  text: string;
+  isHeroSpecific: boolean;
+  requiredStat?: string;   // stat key — only present after resolution (not in pre-choice options)
+  requiredValue?: number;  // threshold — only present after resolution
+}
 ```
 
-**Map** — takes ~65-70% of screen. Generated aerial city image (Replicate), dark noir at night. 15-20 fixed x/y % positions defined in code — these are anonymous gameplay slots, not named locations. Incident pins are colored pulsing orbs placed at whichever slot is free. Pin colors: green (danger 1) / yellow (danger 2) / red (danger 3). When interrupt fires, pin switches to fast strobe. Pins drop in with an expanding ring on arrival, fade out on expiry.
-
-**SDN Comms log** — right side panel wrapped in `vault66-crt-effect` (`vt100` or `dos` preset, amber theme, light scanlines). Monospace text on near-black. Lines typewrite in one character at a time. Color-coded: neutral for log, red for failure, green for success, yellow for eval notes. The CRT sweep line effect triggers naturally as new entries arrive.
-
-**Roster bar** — fixed bottom, inspired by This Is the Police / Dispatch. Hero portrait cards in a horizontal strip. Each card shows:
-- Portrait (from `portraitUrl` DB field, already seeded)
-- Alias below
-- Status overlay: clean = available, pulsing border = deployed, greyed + countdown ring = resting, red OFFLINE stamp = down
-- Clicking opens HeroDetailModal
-
-**Incident modal** — slides in from the pin's position on the map (not a generic centered popup). Mission briefing style: dark background, the incident title in bold, description in a worn typeface, hero slot indicators (empty circles = slots). Player clicks portraits from the roster to fill slots, dispatch button activates when at least one hero selected.
-
-**Interrupt modal** — the tense moment. Screen dims. Options appear as stark choices, text only. Hero-specific option shows that hero's portrait beside the text — greyed + locked icon if they weren't dispatched (player sees what they missed). After choosing: stat icons burn in on all options simultaneously.
-
-**City health bar** — top of screen. Segmented bar styled like a city skyline silhouette. Segments go dark as health drops. Below ~30% the remaining segments flicker.
-
-**Colors:**
-- Background: `#08080f`
-- Panel borders: `#1e1e2e`
-- Danger 1 (minor): `#22c55e`
-- Danger 2 (standard): `#eab308`
-- Danger 3 (major): `#ef4444`
-- Log text: `#fbbf24` (amber)
-- Deployed highlight: `#3b82f6`
-
-### City Locations
-
-15-20 fixed positions spread across the map image, defined as `{ id, x, y }[]` in `frontend/src/lib/cityLocations.ts`. These are pure gameplay slots — no names, no districts. When a new incident arrives the frontend picks the first unoccupied slot and places the pin there. The backend has no concept of location; placement is entirely a frontend concern.
-
-### Hero Portraits
-
-`portraitUrl` field already exists on the hero DB record. Portraits already seeded. Roster bar and modals pull from this field directly.
+Pre-choice SSE sends text + `isHeroSpecific` only. Post-choice SSE (`mission:interrupt:resolved`) sends full options including `requiredStat`/`requiredValue`.
 
 ### SSE → UI Event Map
 
 | SSE Event | UI Effect |
 |---|---|
-| `incident:new` | New pin drops onto map with animation |
-| `incident:expired` | Pin disappears, brief red flash |
-| `mission:interrupt` | Active pin starts fast pulse, interrupt modal queued |
-| `mission:interrupt:resolved` | Stat icons animate in on all options |
-| `mission:outcome` | Outcome badge appears on pin briefly before it fades |
-| `hero:state_update` | Portrait transitions state, cooldown countdown starts |
-| `session:update` | City health counter animates to new value |
-| `game:over` | Game over modal slides in |
-| `log` | New entry fades into log panel |
+| `incident:new` | Pin drops onto map |
+| `incident:active` | Pin label updates from EN ROUTE → ON SCENE |
+| `incident:expired` | Pin removed from map |
+| `mission:interrupt` | Interrupt modal auto-opens, game pauses, pin shows ACT NOW pulse |
+| `mission:interrupt:resolved` | Stat icons slide in on all options; count-up roll on chosen option |
+| `mission:outcome` | Incident status → debriefing; pin shows DEBRIEF + ▼ CLICK |
+| `hero:state_update` | Portrait updates state, cooldown ring starts if resting |
+| `session:update` | Health bar and score counter animate |
+| `game:over` | (game over handling — modal not yet built) |
+| `log` | New entry typewriters into SDN Comms panel |
+
+---
+
+## Game Mode (MVP)
+
+- Session runs until city health hits 0
+- No auth — session ID in URL (`/shift/:id`), created fresh on "Start Shift"
+- Spawn pressure: new incident every ~45–60s, max 4 on map simultaneously
+- Danger level never shown as a number — only as pin color (green/orange/red)
+
+**Incident lifecycle:** `pending` → `en_route` → `active` → `debriefing` → `completed` | `expired`
+
+`debriefing` — mission finished, pin stays on map. Player clicks pin to read debrief, then clicks backdrop or X to dismiss. `POST /:id/acknowledge` moves to `completed` and clears the pin.
 
 ---
 
 ## Future
 
 - Auth + leaderboards
-- Shift mode (handle N incidents, get debriefed)
+- Shift mode (handle N incidents, get debriefed at end)
 - Hero progression + skills
 - Create your own hero
 - Campaign / story mode
