@@ -12,6 +12,7 @@ const pausedSessions = new Set<string>();
 
 export function pauseSession(sessionId: string) { pausedSessions.add(sessionId); }
 export function resumeSession(sessionId: string) { pausedSessions.delete(sessionId); }
+export function isSessionPaused(sessionId: string) { return pausedSessions.has(sessionId); }
 
 export function registerSession(sessionId: string) {
   if (!lastSpawn.has(sessionId)) {

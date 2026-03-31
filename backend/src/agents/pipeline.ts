@@ -7,7 +7,7 @@ import { runDispatcherAgent } from "./dispatcher.js";
 import { runHeroReportAgent } from "./hero-report.js";
 import { runReflectionAgent } from "./reflection.js";
 import { runEvalAgent } from "./eval.js";
-import { scoreHeroes, getMissionOutcome, getInterruptOutcome, type InterruptOption } from "@/services/outcome.js";
+import { scoreHeroes, getMissionOutcome, getInterruptOutcome, combineStats, type InterruptOption } from "@/services/outcome.js";
 import {
   getCooldownUntil,
   rollHealthAfterFailure,
@@ -172,7 +172,7 @@ export async function runMissionPipeline(
     log(sessionId, `Interrupt triggered — awaiting player decision`);
 
     // Wait for player choice — timeout after the remaining half
-    const choiceId = await waitForChoice(mission.id, halfMs);
+    const choiceId = await waitForChoice(mission.id, sessionId, halfMs);
 
     if (choiceId === null) {
       // Player ignored the interrupt — auto-fail
@@ -184,10 +184,17 @@ export async function runMissionPipeline(
       log(sessionId, `Interrupt resolved: "${chosen.text}" → ${outcome.toUpperCase()}`);
 
       // Reveal full options with stat info now that player has chosen
+      const combinedStats = combineStats(dispatchedHeroes);
+      const combinedValue = chosen.isHeroSpecific
+        ? null
+        : (combinedStats[chosen.requiredStat as keyof typeof combinedStats] ?? null);
+
       send(sessionId, "mission:interrupt:resolved", {
         incidentId,
         missionId: mission.id,
         chosenOptionId: choiceId,
+        outcome,
+        combinedValue,
         options, // full options including requiredStat/requiredValue
       });
     }

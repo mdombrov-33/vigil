@@ -188,7 +188,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt }: Props) {
       )}
       {hasInterrupt && (
         <span className="absolute font-mono pointer-events-none whitespace-nowrap"
-          style={{ top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", fontSize: 10, letterSpacing: "0.1em", color: "#ef4444", backgroundColor: "rgba(0,0,0,0.75)", padding: "2px 6px", border: "1px solid #ef444440", animation: "pulse 0.8s ease-in-out infinite" }}>
+          style={{ top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", fontSize: 10, letterSpacing: "0.1em", color, backgroundColor: "rgba(0,0,0,0.75)", padding: "2px 6px", border: `1px solid ${color}60` }}>
           ▼ ACT NOW
         </span>
       )}

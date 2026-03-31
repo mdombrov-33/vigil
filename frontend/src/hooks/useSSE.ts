@@ -81,6 +81,8 @@ export function useSSE(sessionId: string | null) {
       const data = JSON.parse(e.data) as SSEMissionInterruptResolved;
       useGameStore.getState().setInterruptResolved({
         chosenOptionId: data.chosenOptionId,
+        outcome: data.outcome,
+        combinedValue: data.combinedValue,
         options: data.options,
       });
     });

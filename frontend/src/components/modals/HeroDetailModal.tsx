@@ -4,36 +4,33 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { useGameStore } from "@/stores/gameStore";
 import type { Hero } from "@/types/api";
+import { STAT_META } from "@/lib/statMeta";
 
 interface Props {
   hero: Hero | null;
   onClose: () => void;
 }
 
-const STATS = [
-  { key: "threat", label: "Threat", color: "#ef4444" },
-  { key: "grit", label: "Grit", color: "#f97316" },
-  { key: "presence", label: "Presence", color: "#a78bfa" },
-  { key: "edge", label: "Edge", color: "#60a5fa" },
-  { key: "tempo", label: "Tempo", color: "#34d399" },
-] as const;
-
-function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
+function StatBar({ statKey, value }: { statKey: typeof STAT_META[number]["key"]; value: number }) {
+  const meta = STAT_META.find((s) => s.key === statKey)!;
   return (
     <div className="flex items-center gap-3">
-      <span className="font-mono text-[10px] tracking-widest uppercase w-16 shrink-0" style={{ color: "#ffffff50" }}>
-        {label}
-      </span>
+      <div className="flex items-center gap-1.5 w-20 shrink-0">
+        <meta.Icon size={11} style={{ color: meta.color, opacity: 0.8 }} />
+        <span className="font-mono text-[10px] tracking-widest uppercase" style={{ color: "#ffffff50" }}>
+          {meta.label}
+        </span>
+      </div>
       <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: "#1e1e2e" }}>
         <motion.div
           className="h-full rounded-full"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor: meta.color }}
           initial={{ width: 0 }}
           animate={{ width: `${value * 10}%` }}
           transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
         />
       </div>
-      <span className="font-mono text-xs w-4 text-right" style={{ color }}>
+      <span className="font-mono text-xs w-4 text-right" style={{ color: meta.color }}>
         {value}
       </span>
     </div>
@@ -148,8 +145,8 @@ export function HeroDetailModal({ hero, onClose }: Props) {
 
                   {/* Stats */}
                   <div className="flex flex-col gap-2.5">
-                    {STATS.map((s) => (
-                      <StatBar key={s.key} label={s.label} value={hero[s.key]} color={s.color} />
+                    {STAT_META.map((s) => (
+                      <StatBar key={s.key} statKey={s.key} value={hero[s.key]} />
                     ))}
                   </div>
                 </div>

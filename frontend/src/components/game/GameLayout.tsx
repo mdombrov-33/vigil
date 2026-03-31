@@ -67,15 +67,17 @@ export function GameLayout({
         {startScreenSlot}
       </div>
 
-      {/* Roster — always visible */}
-      <div className="h-56 shrink-0">
-        <RosterBar
-          onHeroClick={onHeroClick}
-          selectedHeroIds={incidentOpen ? selectedHeroIds : []}
-          selectionMode={false}
-          dragEnabled={incidentOpen}
-        />
-      </div>
+      {/* Roster — visible only during shift */}
+      {shiftStarted && (
+        <div className="h-56 shrink-0">
+          <RosterBar
+            onHeroClick={onHeroClick}
+            selectedHeroIds={incidentOpen ? selectedHeroIds : []}
+            selectionMode={false}
+            dragEnabled={incidentOpen}
+          />
+        </div>
+      )}
     </div>
   );
 }

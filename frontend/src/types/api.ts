@@ -34,7 +34,7 @@ export interface InterruptOption {
   id: string;
   text: string;
   isHeroSpecific: boolean;
-  statKey?: string;
+  requiredStat?: string;
   requiredValue?: number;
 }
 
@@ -83,6 +83,8 @@ export interface SSEMissionInterruptResolved {
   incidentId: string;
   missionId: string;
   chosenOptionId: string;
+  outcome: "success" | "failure";
+  combinedValue: number | null;
   options: InterruptOption[];
 }
 

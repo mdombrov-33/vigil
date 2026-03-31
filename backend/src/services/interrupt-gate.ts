@@ -1,22 +1,34 @@
 // In-memory gate — one pending interrupt per mission.
 // Pipeline awaits waitForChoice(); player's POST resolves it.
-// If the player doesn't choose in time, resolves with null → auto-fail.
+// If the player doesn't choose in time (counting only unpaused time), resolves with null → auto-fail.
+
+import { isSessionPaused } from "@/services/game-loop.js";
 
 const pending = new Map<string, (choiceId: string | null) => void>();
 
 export function waitForChoice(
   missionId: string,
+  sessionId: string,
   timeoutMs: number,
 ): Promise<string | null> {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      pending.delete(missionId);
-      console.log(`[interrupt-gate] mission ${missionId} timed out — auto-fail`);
-      resolve(null);
-    }, timeoutMs);
+    let elapsed = 0;
+    const TICK = 200;
+
+    const timer = setInterval(() => {
+      if (!isSessionPaused(sessionId)) {
+        elapsed += TICK;
+      }
+      if (elapsed >= timeoutMs) {
+        clearInterval(timer);
+        pending.delete(missionId);
+        console.log(`[interrupt-gate] mission ${missionId} timed out — auto-fail`);
+        resolve(null);
+      }
+    }, TICK);
 
     pending.set(missionId, (choiceId) => {
-      clearTimeout(timer);
+      clearInterval(timer);
       resolve(choiceId);
     });
   });

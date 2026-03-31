@@ -185,20 +185,11 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
               </div>
             )}
 
-            {/* Acknowledge */}
-            <div className="p-5 shrink-0" style={{ borderTop: "1px solid var(--border)" }}>
-              <motion.button
-                onClick={handleAck}
-                className="w-full py-3 font-mono text-xs tracking-widest uppercase"
-                style={{
-                  backgroundColor: isSuccess ? "var(--success)" : "var(--danger)",
-                  color: "#000",
-                  cursor: "pointer",
-                }}
-                whileTap={{ scale: 0.98 }}
-              >
-                Acknowledge & Clear
-              </motion.button>
+            {/* Dismiss hint */}
+            <div className="px-5 py-3 shrink-0 text-center" style={{ borderTop: "1px solid var(--border)" }}>
+              <span className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>
+                CLICK ANYWHERE TO DISMISS
+              </span>
             </div>
           </motion.div>
         </motion.div>
