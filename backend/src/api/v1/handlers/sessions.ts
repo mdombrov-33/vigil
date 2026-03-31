@@ -1,8 +1,12 @@
 import { Request, Response } from "express";
 import { db, sessions, heroes, incidents } from "@/db/index.js";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { sendJson } from "@/utils/response";
 import { registerSession, pauseSession, resumeSession } from "@/services/game-loop.js";
+import { send } from "@/sse/manager.js";
+
+// Track when each session was paused so resume can extend timers
+const sessionPausedAt = new Map<string, number>();
 
 // POST /api/v1/sessions
 export async function createSession(_req: Request, res: Response) {
@@ -50,13 +54,35 @@ export async function startSession(req: Request, res: Response) {
 
 // POST /api/v1/sessions/:id/pause
 export function pauseGameSession(req: Request, res: Response) {
-  pauseSession(req.params.id as string);
+  const id = req.params.id as string;
+  pauseSession(id);
+  sessionPausedAt.set(id, Date.now());
   sendJson(res, 200, { paused: true });
 }
 
 // POST /api/v1/sessions/:id/resume
-export function resumeGameSession(req: Request, res: Response) {
-  resumeSession(req.params.id as string);
+export async function resumeGameSession(req: Request, res: Response) {
+  const id = req.params.id as string;
+  resumeSession(id);
+
+  const pausedAt = sessionPausedAt.get(id);
+  if (pausedAt) {
+    const pausedMs = Date.now() - pausedAt;
+    sessionPausedAt.delete(id);
+
+    // Extend expiresAt for all pending incidents so they don't expire during pauses
+    const extended = await db
+      .update(incidents)
+      .set({ expiresAt: sql`${incidents.expiresAt} + make_interval(secs => ${pausedMs / 1000})` })
+      .where(and(eq(incidents.sessionId, id), eq(incidents.status, "pending")))
+      .returning({ id: incidents.id, expiresAt: incidents.expiresAt });
+
+    // Notify frontend of updated expiry times so rings stay in sync
+    for (const inc of extended) {
+      send(id, "incident:timer_extended", { incidentId: inc.id, expiresAt: inc.expiresAt });
+    }
+  }
+
   sendJson(res, 200, { paused: false });
 }
 

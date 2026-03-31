@@ -29,33 +29,22 @@ const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 function TimerRing({ createdAt, expiresAt, color }: { createdAt: string; expiresAt: string; color: string }) {
   const uiPaused = useGameStore((s) => s.uiPaused);
-  const pausedDuration = useGameStore((s) => s.pausedDuration);
-  const pausedSince = useGameStore((s) => s.pausedSince);
 
-  // effectiveNow subtracts all time spent paused so the ring freezes while modal is open
-  const getEffectiveNow = () => {
-    const inProgressPause = pausedSince != null ? Date.now() - pausedSince : 0;
-    return Date.now() - pausedDuration - inProgressPause;
+  const getProgress = () => {
+    const total = new Date(expiresAt).getTime() - new Date(createdAt).getTime();
+    const remaining = new Date(expiresAt).getTime() - Date.now();
+    return Math.max(0, Math.min(1, remaining / total));
   };
 
-  const [progress, setProgress] = useState(() => {
-    const total = new Date(expiresAt).getTime() - new Date(createdAt).getTime();
-    const remaining = new Date(expiresAt).getTime() - getEffectiveNow();
-    return Math.max(0, Math.min(1, remaining / total));
-  });
+  const [progress, setProgress] = useState(getProgress);
 
   useEffect(() => {
-    const total = new Date(expiresAt).getTime() - new Date(createdAt).getTime();
-    const update = () => {
-      const remaining = new Date(expiresAt).getTime() - getEffectiveNow();
-      setProgress(Math.max(0, Math.min(1, remaining / total)));
-    };
-    update();
+    setProgress(getProgress());
     if (uiPaused) return;
-    const interval = setInterval(update, 500);
-    return () => clearInterval(interval);
+    const iv = setInterval(() => setProgress(getProgress()), 500);
+    return () => clearInterval(iv);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [createdAt, expiresAt, uiPaused, pausedDuration]);
+  }, [expiresAt, uiPaused]);
 
   const isUrgent = progress < 0.25;
   const strokeColor = isUrgent ? "#ef4444" : color;

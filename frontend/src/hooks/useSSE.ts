@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useGameStore } from "@/stores/gameStore";
 import type {
   SSEIncidentNew,
+  SSEIncidentTimerExtended,
   SSEMissionInterrupt,
   SSEMissionInterruptResolved,
   SSEMissionOutcome,
@@ -58,6 +59,11 @@ export function useSSE(sessionId: string | null) {
       store.updateIncidentStatus(data.incidentId, "expired");
       store.removeIncident(data.incidentId);
       store.addLogEntry("Incident expired — city health -15", "failure");
+    });
+
+    es.addEventListener("incident:timer_extended", (e) => {
+      const data = JSON.parse(e.data) as SSEIncidentTimerExtended;
+      useGameStore.getState().updateIncidentExpiry(data.incidentId, data.expiresAt);
     });
 
     es.addEventListener("incident:active", (e) => {

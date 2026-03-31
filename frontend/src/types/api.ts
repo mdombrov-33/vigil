@@ -115,3 +115,8 @@ export interface SSESessionUpdate {
 export interface SSEGameOver {
   finalScore: number;
 }
+
+export interface SSEIncidentTimerExtended {
+  incidentId: string;
+  expiresAt: string;
+}

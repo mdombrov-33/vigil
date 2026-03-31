@@ -57,8 +57,6 @@ interface GameStore {
   interruptQueue: InterruptState[];
   missionOutcomes: Record<number, MissionOutcomeState>;
   uiPaused: boolean;
-  pausedDuration: number;   // total ms spent paused (accumulated)
-  pausedSince: number | null; // timestamp when current pause started
   gameOver: boolean;
   finalScore: number | null;
 
@@ -68,6 +66,7 @@ interface GameStore {
   addIncident: (incident: Incident) => void;
   removeIncident: (incidentId: string) => void;
   updateIncidentStatus: (incidentId: string, status: Incident["status"]) => void;
+  updateIncidentExpiry: (incidentId: string, expiresAt: string) => void;
   addLogEntry: (message: string, type: LogEntry["type"]) => void;
   setHeroState: (heroId: string, state: HeroState) => void;
   setMissionOutcome: (incidentId: string, state: MissionOutcomeState) => void;
@@ -92,8 +91,6 @@ export const useGameStore = create<GameStore>((set) => ({
   interruptQueue: [],
   missionOutcomes: {},
   uiPaused: false,
-  pausedDuration: 0,
-  pausedSince: null,
   gameOver: false,
   finalScore: null,
 
@@ -119,6 +116,13 @@ export const useGameStore = create<GameStore>((set) => ({
       ),
     })),
 
+  updateIncidentExpiry: (incidentId, expiresAt) =>
+    set((s) => ({
+      incidents: s.incidents.map((i) =>
+        i.id === incidentId ? { ...i, expiresAt } : i
+      ),
+    })),
+
   addLogEntry: (message, type) =>
     set((s) => ({
       logEntries: [
@@ -140,17 +144,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setMissionOutcome: (incidentId, state) =>
     set((s) => ({ missionOutcomes: { ...s.missionOutcomes, [incidentId]: state } })),
 
-  setUiPaused: (v) =>
-    set((s) => {
-      if (v) {
-        // Pausing — record when we started
-        return { uiPaused: true, pausedSince: Date.now() };
-      } else {
-        // Resuming — accumulate the time we spent paused
-        const elapsed = s.pausedSince != null ? Date.now() - s.pausedSince : 0;
-        return { uiPaused: false, pausedSince: null, pausedDuration: s.pausedDuration + elapsed };
-      }
-    }),
+  setUiPaused: (v) => set({ uiPaused: v }),
   setInterrupt: (state) =>
     set((s) => {
       // If there's already an active unresolved interrupt, queue the new one
@@ -186,8 +180,6 @@ export const useGameStore = create<GameStore>((set) => ({
       interruptQueue: [],
       missionOutcomes: {},
       uiPaused: false,
-      pausedDuration: 0,
-      pausedSince: null,
       gameOver: false,
       finalScore: null,
     }),
