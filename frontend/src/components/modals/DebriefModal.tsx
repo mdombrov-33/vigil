@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { MissionOutcomeState } from "@/stores/gameStore";
@@ -24,6 +24,8 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
   const [activeHeroIdx, setActiveHeroIdx] = useState(0);
   const { data } = useDebrief(incidentId);
   const heroes = data?.heroes ?? [];
+
+  useEffect(() => { setActiveHeroIdx(0); }, [incidentId]);
 
   function handleAck() {
     if (!incidentId) return;

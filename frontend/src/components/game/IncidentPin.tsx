@@ -28,23 +28,32 @@ const RING_RADIUS = 20;
 const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 function TimerRing({ createdAt, expiresAt, color }: { createdAt: string; expiresAt: string; color: string }) {
-  const uiPaused = useGameStore((s) => s.uiPaused);
+  const pausedAt = useGameStore((s) => s.pausedAt);
 
-  const getProgress = () => {
+  const compute = (now: number) => {
     const total = new Date(expiresAt).getTime() - new Date(createdAt).getTime();
-    const remaining = new Date(expiresAt).getTime() - Date.now();
+    const remaining = new Date(expiresAt).getTime() - now;
     return Math.max(0, Math.min(1, remaining / total));
   };
 
-  const [progress, setProgress] = useState(getProgress);
+  const [progress, setProgress] = useState(() => compute(Date.now()));
 
+  // Freeze on pause — only fires when pausedAt changes, not when expiresAt changes.
+  // This prevents incident:timer_extended SSE (arriving while paused) from corrupting the display.
   useEffect(() => {
-    setProgress(getProgress());
-    if (uiPaused) return;
-    const iv = setInterval(() => setProgress(getProgress()), 500);
+    if (pausedAt === null) return;
+    setProgress(compute(pausedAt));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pausedAt]);
+
+  // Tick when not paused — also re-runs after resume so expiresAt is fresh.
+  useEffect(() => {
+    if (pausedAt !== null) return;
+    setProgress(compute(Date.now()));
+    const iv = setInterval(() => setProgress(compute(Date.now())), 500);
     return () => clearInterval(iv);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expiresAt, uiPaused]);
+  }, [expiresAt, pausedAt]);
 
   const isUrgent = progress < 0.25;
   const strokeColor = isUrgent ? "#ef4444" : color;

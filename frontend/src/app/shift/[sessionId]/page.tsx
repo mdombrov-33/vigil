@@ -76,9 +76,13 @@ export default function ActiveShiftPage() {
     setUiPaused(true);
     api.sessions.pause(sessionId);
   }
-  function resumeGame() {
+  async function resumeGame() {
+    // Backend sends timer extension SSEs before the HTTP response, but both travel on
+    // separate connections — SSE processing isn't guaranteed before the fetch resolves.
+    // 200ms gives SSE time to arrive and update all state before we unfreeze.
+    await api.sessions.resume(sessionId).catch(() => {});
+    await new Promise((r) => setTimeout(r, 200));
     setUiPaused(false);
-    api.sessions.resume(sessionId);
   }
 
   function handleIncidentClick(incident: Incident) {

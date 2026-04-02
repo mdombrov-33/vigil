@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { db, sessions, heroes, incidents } from "@/db/index.js";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { db, sessions, heroes, incidents, missions, missionHeroes } from "@/db/index.js";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { sendJson } from "@/utils/response";
 import { registerSession, pauseSession, resumeSession } from "@/services/game-loop.js";
 import { send } from "@/sse/manager.js";
@@ -79,6 +79,7 @@ export function pauseGameSession(req: Request, res: Response) {
   const id = req.params.id as string;
   pauseSession(id);
   sessionPausedAt.set(id, Date.now());
+  console.log(`[session] paused — ${id}`);
   sendJson(res, 200, { paused: true });
 }
 
@@ -91,6 +92,7 @@ export async function resumeGameSession(req: Request, res: Response) {
   if (pausedAt) {
     const pausedMs = Date.now() - pausedAt;
     sessionPausedAt.delete(id);
+    console.log(`[session] resumed — ${id} (paused for ${(pausedMs / 1000).toFixed(1)}s)`);
 
     // Extend expiresAt for all pending incidents so they don't expire during pauses
     const extended = await db
@@ -102,6 +104,39 @@ export async function resumeGameSession(req: Request, res: Response) {
     // Notify frontend of updated expiry times so rings stay in sync
     for (const inc of extended) {
       send(id, "incident:timer_extended", { incidentId: inc.id, expiresAt: inc.expiresAt });
+    }
+
+    // Extend cooldownUntil for resting heroes in this session, then notify frontend
+    const sessionHeroIds = await db
+      .selectDistinct({ heroId: missionHeroes.heroId })
+      .from(missionHeroes)
+      .innerJoin(missions, eq(missions.id, missionHeroes.missionId))
+      .innerJoin(incidents, eq(incidents.id, missions.incidentId))
+      .where(eq(incidents.sessionId, id));
+
+    if (sessionHeroIds.length > 0) {
+      const extendedHeroes = await db
+        .update(heroes)
+        .set({ cooldownUntil: sql`${heroes.cooldownUntil} + make_interval(secs => ${pausedMs / 1000})` })
+        .where(
+          and(
+            eq(heroes.availability, "resting"),
+            isNotNull(heroes.cooldownUntil),
+            inArray(heroes.id, sessionHeroIds.map((r) => r.heroId)),
+          ),
+        )
+        .returning();
+
+      // Push new cooldownUntil to frontend so the countdown resumes from the correct value
+      for (const hero of extendedHeroes) {
+        send(id, "hero:state_update", {
+          heroId: hero.id,
+          alias: hero.alias,
+          availability: hero.availability,
+          health: hero.health,
+          cooldownUntil: hero.cooldownUntil,
+        });
+      }
     }
   }
 

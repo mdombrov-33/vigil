@@ -57,6 +57,7 @@ interface GameStore {
   interruptQueue: InterruptState[];
   missionOutcomes: Record<string, MissionOutcomeState>;
   uiPaused: boolean;
+  pausedAt: number | null; // wall-clock ms when pause started — used as frozen clock reference
   gameOver: boolean;
   sessionComplete: boolean;
   finalScore: number | null;
@@ -71,7 +72,7 @@ interface GameStore {
   addLogEntry: (message: string, type: LogEntry["type"]) => void;
   setHeroState: (heroId: string, state: HeroState) => void;
   setMissionOutcome: (incidentId: string, state: MissionOutcomeState) => void;
-  setUiPaused: (v: boolean) => void;
+  setUiPaused: (v: boolean) => void; // sets uiPaused + snapshots pausedAt
   setInterrupt: (state: InterruptState) => void;
   setInterruptResolved: (resolved: { chosenOptionId: string; outcome: "success" | "failure"; combinedValue: number | null; options: InterruptOption[] }) => void;
   clearInterrupt: () => void;
@@ -93,6 +94,7 @@ export const useGameStore = create<GameStore>((set) => ({
   interruptQueue: [],
   missionOutcomes: {},
   uiPaused: false,
+  pausedAt: null,
   gameOver: false,
   sessionComplete: false,
   finalScore: null,
@@ -147,7 +149,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setMissionOutcome: (incidentId, state) =>
     set((s) => ({ missionOutcomes: { ...s.missionOutcomes, [incidentId]: state } })),
 
-  setUiPaused: (v) => set({ uiPaused: v }),
+  setUiPaused: (v) => set({ uiPaused: v, pausedAt: v ? Date.now() : null }),
   setInterrupt: (state) =>
     set((s) => {
       // If there's already an active unresolved interrupt, queue the new one
@@ -184,6 +186,7 @@ export const useGameStore = create<GameStore>((set) => ({
       interruptQueue: [],
       missionOutcomes: {},
       uiPaused: false,
+      pausedAt: null,
       gameOver: false,
       sessionComplete: false,
       finalScore: null,

@@ -14,6 +14,7 @@ const completedSessions = new Set<string>();
 export function pauseSession(sessionId: string) { pausedSessions.add(sessionId); }
 export function resumeSession(sessionId: string) { pausedSessions.delete(sessionId); }
 export function isSessionPaused(sessionId: string) { return pausedSessions.has(sessionId); }
+export function getPausedSessionIds(): string[] { return [...pausedSessions]; }
 
 function completeSession(sessionId: string, finalScore: number) {
   completedSessions.add(sessionId);
@@ -32,7 +33,7 @@ export function registerSession(sessionId: string) {
 }
 
 export function startIncidentScheduler() {
-  console.log(`[incident-scheduler] started — spawn interval: 45–60s randomized per tick`);
+  console.log(`[incident-scheduler] started`);
 
   setInterval(async () => {
     const activeSessions = getActiveSessions();

@@ -15,16 +15,26 @@ interface Props {
 }
 
 function useCooldownDisplay(cooldownUntil: string | null) {
-  const uiPaused = useGameStore((s) => s.uiPaused);
+  const pausedAt = useGameStore((s) => s.pausedAt);
   const [secondsLeft, setSecondsLeft] = useState(0);
+
+  // Freeze on pause — only fires when pausedAt changes, not when cooldownUntil changes.
+  // This prevents hero:state_update SSE (arriving while paused) from corrupting the display.
   useEffect(() => {
-    if (!cooldownUntil) return;
-    const update = () => setSecondsLeft(Math.max(0, Math.floor((new Date(cooldownUntil).getTime() - Date.now()) / 1000)));
-    update();
-    if (uiPaused) return; // freeze display, don't tick
-    const interval = setInterval(update, 1000);
+    if (pausedAt === null || !cooldownUntil) return;
+    setSecondsLeft(Math.max(0, Math.floor((new Date(cooldownUntil).getTime() - pausedAt) / 1000)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pausedAt]);
+
+  // Tick when not paused — also re-runs after resume so cooldownUntil is fresh.
+  useEffect(() => {
+    if (pausedAt !== null || !cooldownUntil) return;
+    const calc = () => Math.max(0, Math.floor((new Date(cooldownUntil).getTime() - Date.now()) / 1000));
+    setSecondsLeft(calc());
+    const interval = setInterval(() => setSecondsLeft(calc()), 1000);
     return () => clearInterval(interval);
-  }, [cooldownUntil, uiPaused]);
+  }, [cooldownUntil, pausedAt]);
+
   return secondsLeft;
 }
 
