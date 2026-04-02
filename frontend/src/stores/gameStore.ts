@@ -5,7 +5,6 @@ import type {
   HeroHealth,
   EvalVerdict,
   InterruptOption,
-  DangerLevel,
 } from "@/types/api";
 
 export interface LogEntry {
@@ -56,7 +55,7 @@ interface GameStore {
   heroStates: Record<string, HeroState>;
   interruptState: InterruptState | null;
   interruptQueue: InterruptState[];
-  missionOutcomes: Record<number, MissionOutcomeState>;
+  missionOutcomes: Record<string, MissionOutcomeState>;
   uiPaused: boolean;
   gameOver: boolean;
   sessionComplete: boolean;

@@ -127,3 +127,10 @@ export interface SSEIncidentTimerExtended {
   incidentId: string;
   expiresAt: string;
 }
+
+export interface DebriefHero {
+  heroId: string;
+  alias: string;
+  portraitUrl: string | null;
+  report: string | null;
+}

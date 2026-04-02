@@ -6,26 +6,13 @@ import Image from "next/image";
 import { useGameStore } from "@/stores/gameStore";
 import { useHeroes } from "@/hooks/useHeroes";
 import { STAT_META_BY_KEY } from "@/lib/statMeta";
+import { api } from "@/lib/api";
 import type { InterruptOption } from "@/types/api";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 // Auto-close delay after resolution animation plays
 const RESOLVE_AUTOCLOSE_MS = 7000;
 
 interface Props { onClose: () => void; }
-
-async function submitChoice(incidentId: string, choiceId: string) {
-  const res = await fetch(`${API}/api/v1/incidents/${incidentId}/interrupt`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ choiceId }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? "Failed");
-  }
-}
 
 // Count-up animation — number climbs then color shifts to outcome color
 function StatRoll({
@@ -268,7 +255,7 @@ export function InterruptModal({ onClose }: Props) {
     setSubmittedId(optionId);
     setError(null);
     try {
-      await submitChoice(interruptState.incidentId, optionId);
+      await api.incidents.interrupt(interruptState.incidentId, optionId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
       setSubmittedId(null);

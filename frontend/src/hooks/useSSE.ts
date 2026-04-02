@@ -155,5 +155,6 @@ export function useSSE(sessionId: string | null) {
       console.log("[SSE] closing");
       es.close();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 }

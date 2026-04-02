@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { MissionOutcomeState } from "@/stores/gameStore";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { useDebrief } from "@/hooks/useDebrief";
+import { api } from "@/lib/api";
 
 const verdictMeta = {
   optimal:    { color: "#22c55e", label: "OPTIMAL" },
@@ -14,44 +14,20 @@ const verdictMeta = {
   poor:       { color: "#ef4444", label: "POOR" },
 } as const;
 
-interface DebriefHero {
-  heroId: string;
-  alias: string;
-  portraitUrl: string | null;
-  report: string | null;
-}
-
 interface Props {
   outcome: MissionOutcomeState | null;
   incidentId: string | null;
   onClose: () => void;
 }
 
-async function fetchDebrief(incidentId: string): Promise<{ heroes: DebriefHero[] }> {
-  const res = await fetch(`${API}/api/v1/incidents/${incidentId}/debrief`);
-  if (!res.ok) return { heroes: [] };
-  return res.json();
-}
-
-async function acknowledgeDebrief(incidentId: string) {
-  await fetch(`${API}/api/v1/incidents/${incidentId}/acknowledge`, { method: "POST" });
-}
-
 export function DebriefModal({ outcome, incidentId, onClose }: Props) {
-  const [heroes, setHeroes] = useState<DebriefHero[]>([]);
   const [activeHeroIdx, setActiveHeroIdx] = useState(0);
-
-  useEffect(() => {
-    if (!incidentId) { setHeroes([]); setActiveHeroIdx(0); return; }
-    fetchDebrief(incidentId).then((d) => {
-      setHeroes(d.heroes ?? []);
-      setActiveHeroIdx(0);
-    });
-  }, [incidentId]);
+  const { data } = useDebrief(incidentId);
+  const heroes = data?.heroes ?? [];
 
   function handleAck() {
     if (!incidentId) return;
-    acknowledgeDebrief(incidentId).catch(() => {});
+    api.incidents.acknowledge(incidentId);
     onClose();
   }
 

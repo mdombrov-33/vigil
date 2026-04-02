@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/hooks/useSession";
+import { api } from "@/lib/api";
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useGameStore } from "@/stores/gameStore";
 import { useHeroes } from "@/hooks/useHeroes";
@@ -13,8 +15,6 @@ import { HeroDetailModal } from "@/components/modals/HeroDetailModal";
 import { InterruptModal } from "@/components/modals/InterruptModal";
 import { DebriefModal } from "@/components/modals/DebriefModal";
 import type { Hero, Incident } from "@/types/api";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export default function ActiveShiftPage() {
   const params = useParams();
@@ -30,21 +30,23 @@ export default function ActiveShiftPage() {
   const [debriefIncidentId, setDebriefIncidentId] = useState<string | null>(null);
   const [draggingHeroId, setDraggingHeroId] = useState<string | null>(null);
   const { data: heroes = [] } = useHeroes();
+  const { data: sessionData } = useSession(sessionId);
 
   useSSE(sessionId);
 
-  // Boot the session: reset any stale state, hydrate store, kick off backend game loop
+  // Reset store on mount
   useEffect(() => {
     reset();
     setSession(sessionId, 100, 0);
-    fetch(`${API}/api/v1/sessions/${sessionId}`)
-      .then((r) => r.json())
-      .then((s: { cityHealth: number; score: number }) => {
-        setSession(sessionId, s.cityHealth, s.score);
-      })
-      .catch(() => {});
     queryClient.invalidateQueries({ queryKey: ["heroes"] });
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hydrate city health + score from server once session data arrives
+  useEffect(() => {
+    if (sessionData) {
+      setSession(sessionId, sessionData.cityHealth, sessionData.score);
+    }
+  }, [sessionData?.cityHealth, sessionData?.score]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hide cursor while dragging
   useEffect(() => {
@@ -62,7 +64,7 @@ export default function ActiveShiftPage() {
     if (interruptState && !interruptState.resolved) {
       setInterruptModalOpen(true);
       setUiPaused(true);
-      fetch(`${API}/api/v1/sessions/${sessionId}/pause`, { method: "POST" });
+      api.sessions.pause(sessionId);
     }
     if (!interruptState) setInterruptModalOpen(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,11 +74,11 @@ export default function ActiveShiftPage() {
 
   function pauseGame() {
     setUiPaused(true);
-    fetch(`${API}/api/v1/sessions/${sessionId}/pause`, { method: "POST" });
+    api.sessions.pause(sessionId);
   }
   function resumeGame() {
     setUiPaused(false);
-    fetch(`${API}/api/v1/sessions/${sessionId}/resume`, { method: "POST" });
+    api.sessions.resume(sessionId);
   }
 
   function handleIncidentClick(incident: Incident) {

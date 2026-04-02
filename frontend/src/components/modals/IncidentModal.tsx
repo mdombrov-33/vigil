@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { useDroppable } from "@dnd-kit/core";
+import { useMutation } from "@tanstack/react-query";
 import { useHeroes } from "@/hooks/useHeroes";
+import { api } from "@/lib/api";
 import type { Incident } from "@/types/api";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export const dangerMeta = {
   1: { color: "#22c55e", label: "MINOR" },
@@ -64,42 +64,24 @@ interface Props {
   onDispatched: () => void;
 }
 
-async function dispatchHeroes(incidentId: string, heroIds: string[]) {
-  const res = await fetch(`${API}/api/v1/incidents/${incidentId}/dispatch`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ heroIds }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? "Dispatch failed");
-  }
-}
-
 export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose, onDispatched }: Props) {
-  const [dispatching, setDispatching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { mutate: dispatch, isPending, error, reset: resetMutation } = useMutation({
+    mutationFn: ({ incidentId, heroIds }: { incidentId: string; heroIds: string[] }) =>
+      api.incidents.dispatch(incidentId, heroIds),
+    onSuccess: onDispatched,
+  });
 
   useEffect(() => {
-    setDispatching(false);
-    setError(null);
-  }, [incident?.id]);
+    resetMutation();
+  }, [incident?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const danger = incident ? dangerMeta[incident.dangerLevel] : null;
   const slotCount = incident?.slotCount ?? 1;
-  const canDispatch = selectedHeroIds.length >= 1 && !dispatching;
+  const canDispatch = selectedHeroIds.length >= 1 && !isPending;
 
-  async function handleDispatch() {
+  function handleDispatch() {
     if (!incident || !canDispatch) return;
-    setDispatching(true);
-    setError(null);
-    try {
-      await dispatchHeroes(incident.id, selectedHeroIds);
-      onDispatched();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Dispatch failed");
-      setDispatching(false);
-    }
+    dispatch({ incidentId: incident.id, heroIds: selectedHeroIds });
   }
 
   return (
@@ -196,7 +178,9 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
                   ))}
                 </div>
                 {error && (
-                  <div className="font-mono text-[10px]" style={{ color: "var(--danger)" }}>{error}</div>
+                  <div className="font-mono text-[10px]" style={{ color: "var(--danger)" }}>
+                    {error instanceof Error ? error.message : "Dispatch failed"}
+                  </div>
                 )}
                 <motion.button
                   onClick={handleDispatch}
@@ -209,7 +193,7 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
                   }}
                   whileTap={canDispatch ? { scale: 0.98 } : {}}
                 >
-                  {dispatching ? "Dispatching..." : "Dispatch"}
+                  {isPending ? "Dispatching..." : "Dispatch"}
                 </motion.button>
               </div>
             </motion.div>
