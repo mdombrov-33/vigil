@@ -43,6 +43,7 @@ export interface Incident {
   sessionId: string;
   title: string;
   description: string;
+  hints: string[];
   dangerLevel: DangerLevel;
   slotCount: number;
   hasInterrupt: boolean;
@@ -64,6 +65,7 @@ export interface SSEIncidentNew {
   incidentId: string;
   title: string;
   description: string;
+  hints: string[];
   slotCount: number;
   dangerLevel: DangerLevel;
   hasInterrupt: boolean;

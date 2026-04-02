@@ -41,6 +41,7 @@ export function useSSE(sessionId: string | null) {
         sessionId,
         title: data.title,
         description: data.description,
+        hints: data.hints ?? [],
         dangerLevel: data.dangerLevel,
         slotCount: data.slotCount,
         hasInterrupt: data.hasInterrupt,

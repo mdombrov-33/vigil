@@ -117,11 +117,11 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
           >
             {/* Panel */}
             <motion.div
-              className="relative w-full max-w-md flex flex-col overflow-hidden"
+              className="relative w-full max-w-xl flex flex-col overflow-hidden"
               style={{
                 backgroundColor: "var(--panel)",
                 border: `1px solid ${danger?.color}30`,
-                maxHeight: "min(480px, 90%)",
+                maxHeight: "min(520px, 90%)",
               }}
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -150,53 +150,67 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
                   style={{ color: "var(--text-muted)" }}>✕</button>
               </div>
 
-              {/* Body — two columns */}
-              <div className="flex flex-1 overflow-hidden">
-                {/* Left: description */}
-                <div className="flex-1 px-5 py-4 overflow-y-auto" style={{ borderRight: "1px solid var(--border)" }}>
-                  <p className="font-mono text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>
-                    {incident.description}
-                  </p>
-                </div>
+              {/* Body — single scrollable column */}
+              <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 flex flex-col gap-4">
+                {/* Flavor description */}
+                <p className="font-mono text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                  {incident.description}
+                </p>
 
-                {/* Right: slots + dispatch */}
-                <div className="shrink-0 w-48 px-4 pt-4 pb-5 flex flex-col gap-4 justify-between">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="font-mono text-[9px] tracking-widest uppercase text-center" style={{ color: "var(--text-secondary)" }}>
-                      {selectedHeroIds.length === 0
-                        ? "Select heroes"
-                        : `${selectedHeroIds.length} / ${slotCount} selected`}
+                {/* Field intel hints */}
+                {incident.hints.length > 0 && (
+                  <div>
+                    <div className="font-mono text-[9px] tracking-widest mb-2.5" style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border)", paddingTop: "12px" }}>
+                      FIELD INTEL
                     </div>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {Array.from({ length: slotCount }).map((_, i) => (
-                        <HeroSlot
-                          key={i}
-                          index={i}
-                          heroId={selectedHeroIds[i] ?? null}
-                          dangerColor={danger?.color ?? "#ffffff"}
-                          onRemove={() => onHeroToggle(selectedHeroIds[i])}
-                        />
+                    <ul className="flex flex-col gap-2">
+                      {incident.hints.map((hint, i) => (
+                        <li key={i} className="flex gap-2.5 items-start">
+                          <span className="font-mono text-[9px] mt-0.5 shrink-0" style={{ color: danger?.color }}>▸</span>
+                          <span className="font-mono text-[11px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                            {hint}
+                          </span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
+                )}
+              </div>
 
-                  <div className="flex flex-col gap-2">
-                    {error && <div className="font-mono text-[10px] text-center" style={{ color: "var(--danger)" }}>{error}</div>}
-                    <motion.button
-                      onClick={handleDispatch}
-                      disabled={!canDispatch}
-                      className="w-full py-3 font-mono text-xs tracking-widest uppercase"
-                      style={{
-                        backgroundColor: canDispatch ? danger?.color : "var(--border)",
-                        color: canDispatch ? "#000" : "var(--text-muted)",
-                        cursor: canDispatch ? "pointer" : "not-allowed",
-                      }}
-                      whileTap={canDispatch ? { scale: 0.98 } : {}}
-                    >
-                      {dispatching ? "Dispatching..." : "Dispatch"}
-                    </motion.button>
-                  </div>
+              {/* Footer — slots centered + dispatch */}
+              <div className="shrink-0 px-5 py-4 flex flex-col items-center gap-3" style={{ borderTop: "1px solid var(--border)" }}>
+                <div className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                  {selectedHeroIds.length === 0
+                    ? "Select heroes from roster"
+                    : `${selectedHeroIds.length} / ${slotCount} selected`}
                 </div>
+                <div className="flex gap-2 justify-center">
+                  {Array.from({ length: slotCount }).map((_, i) => (
+                    <HeroSlot
+                      key={i}
+                      index={i}
+                      heroId={selectedHeroIds[i] ?? null}
+                      dangerColor={danger?.color ?? "#ffffff"}
+                      onRemove={() => onHeroToggle(selectedHeroIds[i])}
+                    />
+                  ))}
+                </div>
+                {error && (
+                  <div className="font-mono text-[10px]" style={{ color: "var(--danger)" }}>{error}</div>
+                )}
+                <motion.button
+                  onClick={handleDispatch}
+                  disabled={!canDispatch}
+                  className="w-full max-w-xs py-2.5 font-mono text-xs tracking-widest uppercase"
+                  style={{
+                    backgroundColor: canDispatch ? danger?.color : "var(--border)",
+                    color: canDispatch ? "#000" : "var(--text-muted)",
+                    cursor: canDispatch ? "pointer" : "not-allowed",
+                  }}
+                  whileTap={canDispatch ? { scale: 0.98 } : {}}
+                >
+                  {dispatching ? "Dispatching..." : "Dispatch"}
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
