@@ -37,7 +37,7 @@ export async function runHeroReportAgent(
     : "You handled this one solo.";
 
   const arcLine = context.arcName
-    ? `This incident is part of an ongoing situation: ${context.arcName}. You may have encountered this thread before — draw on that if it feels natural.`
+    ? `This incident is part of an ongoing situation: ${context.arcName}.`
     : "";
 
   const interruptLine = context.interrupt
@@ -57,8 +57,8 @@ ${teamLine}${arcLine ? `\n${arcLine}` : ""}${interruptLine ? `\n${interruptLine}
 Outcome: ${outcome.toUpperCase()}
 
 Write in first person, in your voice. HARD LIMIT: 3 sentences maximum — this is a UI card.
-Let your character lead. Don't follow a formula. Reference past missions, teammates, the arc thread, or the interrupt if it adds something real — skip it if it doesn't.
-Your mission history gives you continuity — use it when this mission connects to something you've dealt with before.`,
+Let your character lead. Don't follow a formula. Reference teammates or the interrupt if it adds something real — skip it if it doesn't.
+Only reference past missions if get_hero_mission_history returned actual records. If your history is empty, do not invent prior encounters — ground the report in what happened on this mission.`,
   );
 
   return result.finalOutput as HeroReport;

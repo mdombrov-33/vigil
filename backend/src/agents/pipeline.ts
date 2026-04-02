@@ -402,7 +402,7 @@ export async function runMissionPipeline(
   await db
     .update(missions)
     .set({
-      evalScore: evalResult.score,
+      evalScore: Math.round(evalResult.score),
       evalVerdict: evalResult.verdict,
       evalExplanation: evalResult.explanation,
       evalPostOpNote: evalResult.postOpNote,
@@ -420,7 +420,7 @@ export async function runMissionPipeline(
     outcome,
     title: incident.title,
     heroes: dispatchedHeroes.map((h) => ({ heroId: h.id, alias: h.alias })),
-    evalScore: evalResult.score,
+    evalScore: Math.round(evalResult.score),
     evalVerdict: evalResult.verdict,
     evalPostOpNote: evalResult.postOpNote,
   });
