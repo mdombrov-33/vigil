@@ -82,6 +82,7 @@ export async function runIncidentCreationPipeline(
       expiryDuration: triage.expiryDuration,
       hints: triage.hints,
       hasInterrupt: triage.hasInterrupt,
+      interruptTrigger: triage.interruptTrigger ?? null,
       interruptOptions: triage.interruptOptions ?? null,
       topHeroId: narrativePick.heroId,
       expiresAt,
@@ -166,6 +167,7 @@ export async function runMissionPipeline(
       missionId: mission.id,
       topHeroId: incident.topHeroId,
       heroIds,
+      trigger: incident.interruptTrigger ?? null,
       options: options.map((o) => ({
         id: o.id,
         text: o.text,
@@ -333,7 +335,6 @@ export async function runMissionPipeline(
     evalVerdict: evalResult.verdict,
     evalPostOpNote: evalResult.postOpNote,
   });
-  log(sessionId, `Eval: ${evalResult.score}/10 ${evalResult.verdict} — ${evalResult.postOpNote}`);
 
   console.log(`[mission-pipeline] done — mission ${mission.id} complete`);
 }

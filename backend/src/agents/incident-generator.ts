@@ -45,7 +45,9 @@ FORMAT: Pick one of the following formats for the description. Vary across incid
 8. HQ SATELLITE NOTE — Terse, clinical, based on remote observation.
    Example: "Thermal imaging at grid 7-Alpha shows eleven heat signatures stationary for six hours. One is significantly larger than the others. No movement. No communication. Recommend eyes on scene."
 
-Title: short, punchy, specific. Vary tone with the format — can be deadpan, bureaucratic, or urgent. Not "Robbery" — "Armed Standoff at Meridian Trust". Or "Man in Exosuit, Again". Or "Noise Complaint — Caller Insists It's Not a Raccoon".`,
+Title: short, punchy, specific. Vary tone with the format — can be deadpan, bureaucratic, or urgent. Not "Robbery" — "Armed Standoff at Meridian Trust". Or "Man in Exosuit, Again". Or "Noise Complaint — Caller Insists It's Not a Raccoon".
+
+CRITICAL: Never include the format name in the output. Do not prefix the description with "INTERNAL MEMO:", "DISPATCH LOG:", "CALLER TRANSCRIPT:", or any label. Just write the description in that voice and style — the label is for your reference only.`,
   outputType: IncidentGeneratorOutputSchema,
   model: MODEL_FAST,
 });

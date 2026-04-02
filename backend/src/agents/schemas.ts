@@ -62,6 +62,10 @@ export const TriageOutputSchema = z.object({
     .number()
     .describe("Seconds before the incident expires unresolved"),
   hasInterrupt: z.boolean(),
+  interruptTrigger: z
+    .string()
+    .optional()
+    .describe("One sentence in dispatch voice describing what happened mid-mission to force this decision. Past tense. Only set when hasInterrupt is true. Example: 'A secondary device was found wired to the main panel as the team moved to secure the floor.'"),
   interruptOptions: z.array(interruptOptionSchema).optional(),
 });
 export type TriageOutput = z.infer<typeof TriageOutputSchema>;

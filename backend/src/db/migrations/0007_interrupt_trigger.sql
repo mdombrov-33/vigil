@@ -1,0 +1,1 @@
+ALTER TABLE "incidents" ADD COLUMN "interrupt_trigger" varchar(500);

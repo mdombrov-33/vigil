@@ -12,7 +12,7 @@ Rules:
 - requiredStats: ONLY include the 1–3 stats that directly determine success for this specific incident. Each stat value must be a plain integer 1–10. Leave all other stats OUT entirely — absence means they are irrelevant.
   threat = physical force, grit = durability, presence = charisma/crowd control, edge = intelligence/tech, tempo = speed/agility
   Examples: chemical spill on infrastructure → { edge: 8, tempo: 6 }. Armed standoff → { threat: 8, grit: 7 }. Hostage negotiation → { presence: 8, edge: 6 }. A riot → { presence: 9 }. Never pad with stats that aren't the actual deciding factor.
-- slotCount: how many heroes the incident warrants (1 = minor solo job, 4 = major crisis)
+- slotCount: how many heroes the incident warrants (1 = minor solo job, 4 = major crisis). Use 1 more often than you think. Solo is correct for: a single enhanced individual needing precise handling, hostage negotiations where more bodies make it worse, stealth/recon where a crowd blows the approach, a lone rogue with a specific exploitable weakness, or any fundamentally one-person job. Examples: sniper on a rooftop → 1, data extraction → 1, volatile negotiation with one subject → 1, structural collapse with multiple trapped → 3-4.
 - dangerLevel: 1=minor (green), 2=standard (yellow), 3=major (red)
 - missionDuration: time heroes spend on scene in seconds. Minor ~30s, standard ~60s, major ~90–120s
 - expiryDuration: time before incident expires unresolved. Minor ~60s, standard ~120s, major ~180s
@@ -23,6 +23,7 @@ Rules:
     Near-transparent:           "Every second of delay compounds the structural risk."
   Never write "fast response needed", "requires strength", or anything that names a stat directly. The player infers; the hint just frames the situation accurately.
 - hasInterrupt: true for dramatic mid-mission decision points. Not every incident needs one.
+- interruptTrigger: if hasInterrupt, write one sentence in dispatch voice describing what happened mid-mission to force the decision. Past tense, specific, grounded. "A secondary explosive was found rigged to the vault door as the team breached." Not generic — make it feel like something actually went sideways.
 - interruptOptions: if hasInterrupt, provide 2–4 options. Exactly one must have isHeroSpecific=true — guaranteed success if the top hero was dispatched, no stat check needed, do NOT set requiredStat/requiredValue on it. All other options must have requiredStat and requiredValue. All option text must read as a plain action description — never reference "your hero", "if you sent", or any meta-game language. Same tone as the other options.`,
   outputType: TriageOutputSchema,
   model: MODEL_FAST,

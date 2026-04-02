@@ -79,6 +79,7 @@ export function useSSE(sessionId: string | null) {
         missionId: data.missionId,
         topHeroId: data.topHeroId,
         heroIds: data.heroIds ?? [],
+        trigger: data.trigger ?? null,
         options: data.options,
       });
       useGameStore.getState().updateIncidentStatus(data.incidentId, "active");

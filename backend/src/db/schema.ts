@@ -79,6 +79,7 @@ export const incidents = pgTable("incidents", {
   hints: jsonb("hints"), // string[] | null
   // Interrupt
   hasInterrupt: boolean("has_interrupt").notNull().default(false),
+  interruptTrigger: varchar("interrupt_trigger", { length: 500 }), // one sentence context shown in interrupt modal
   interruptOptions: jsonb("interrupt_options"), // InterruptOption[] | null
   topHeroId: uuid("top_hero_id"),
   // Lifecycle

@@ -78,6 +78,7 @@ export interface SSEMissionInterrupt {
   missionId: string;
   topHeroId: string | null;
   heroIds: string[];
+  trigger: string | null;
   options: InterruptOption[];
 }
 

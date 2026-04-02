@@ -326,7 +326,12 @@ export function InterruptModal({ onClose }: Props) {
                 style={{ color: "var(--text-muted)" }}>✕</button>
             </div>
 
-            <div className="px-5 pb-3 shrink-0">
+            <div className="px-5 pb-3 shrink-0 flex flex-col gap-2">
+              {interruptState.trigger && !isResolved && (
+                <p className="font-mono text-[11px] leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                  {interruptState.trigger}
+                </p>
+              )}
               <p className="font-mono text-[9px] tracking-widest uppercase" style={{ color: "var(--text-secondary)" }}>
                 {isResolved ? "Stat data revealed — closing shortly"
                   : submittedId ? "Awaiting response..."

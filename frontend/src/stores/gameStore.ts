@@ -26,6 +26,7 @@ export interface InterruptState {
   missionId: string;
   topHeroId: string | null;
   heroIds: string[];
+  trigger: string | null;
   options: InterruptOption[];
   resolved?: {
     chosenOptionId: string;
