@@ -4,7 +4,7 @@ import { runIncidentGeneratorAgent } from "./incident-generator.js";
 import { runTriageAgent } from "./triage.js";
 import { runNarrativePickAgent } from "./narrative-pick.js";
 import { runDispatcherAgent } from "./dispatcher.js";
-import { runHeroReportAgent } from "./hero-report.js";
+import { runHeroReportAgent, type MissionContext } from "./hero-report.js";
 import { runReflectionAgent } from "./reflection.js";
 import { runEvalAgent } from "./eval.js";
 import { scoreHeroes, getMissionOutcome, getInterruptOutcome, combineStats, type InterruptOption } from "@/services/outcome.js";
@@ -151,6 +151,7 @@ export async function runMissionPipeline(
   // Mission in progress
   const halfMs = (incident.missionDuration * 1000) / 2;
   let outcome: "success" | "failure";
+  let interruptContext: MissionContext["interrupt"] | undefined;
 
   if (incident.hasInterrupt && incident.interruptOptions) {
     const options = incident.interruptOptions as InterruptOption[];
@@ -181,6 +182,7 @@ export async function runMissionPipeline(
     } else {
       const chosen = options.find((o) => o.id === choiceId)!;
       outcome = getInterruptOutcome(chosen, dispatchedHeroes, incident.topHeroId);
+      interruptContext = { chosenOptionText: chosen.text, outcome };
       log(sessionId, `Interrupt resolved: "${chosen.text}" → ${outcome.toUpperCase()}`);
 
       // Reveal full options with stat info now that player has chosen
@@ -230,7 +232,14 @@ export async function runMissionPipeline(
     `[mission-pipeline] generating reports for: ${dispatchedHeroes.map((h) => h.alias).join(", ")}`,
   );
   const rawReports = await Promise.all(
-    dispatchedHeroes.map((hero) => runHeroReportAgent(hero, outcome, incident)),
+    dispatchedHeroes.map((hero) => {
+      const missionContext: MissionContext = {
+        teammates: dispatchedHeroes.filter((h) => h.id !== hero.id).map((h) => h.alias),
+        isLead: hero.id === incident.topHeroId,
+        interrupt: interruptContext,
+      };
+      return runHeroReportAgent(hero, outcome, incident, missionContext);
+    }),
   );
 
   console.log(`[mission-pipeline] running reflection pass`);
