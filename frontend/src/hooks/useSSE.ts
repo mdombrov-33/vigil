@@ -65,7 +65,10 @@ export function useSSE(sessionId: string | null) {
 
     es.addEventListener("incident:timer_extended", (e) => {
       const data = JSON.parse(e.data) as SSEIncidentTimerExtended;
-      useGameStore.getState().updateIncidentExpiry(data.incidentId, data.expiresAt);
+      const store = useGameStore.getState();
+      store.updateIncidentExpiry(data.incidentId, data.expiresAt);
+      // expiresAt is now correct — safe to unfreeze visual timers
+      store.clearPausedAt();
     });
 
     es.addEventListener("incident:active", (e) => {

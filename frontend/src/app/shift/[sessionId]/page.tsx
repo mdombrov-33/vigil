@@ -76,13 +76,12 @@ export default function ActiveShiftPage() {
     setUiPaused(true);
     api.sessions.pause(sessionId);
   }
-  async function resumeGame() {
-    // Backend sends timer extension SSEs before the HTTP response, but both travel on
-    // separate connections — SSE processing isn't guaranteed before the fetch resolves.
-    // 200ms gives SSE time to arrive and update all state before we unfreeze.
-    await api.sessions.resume(sessionId).catch(() => {});
-    await new Promise((r) => setTimeout(r, 200));
-    setUiPaused(false);
+  function resumeGame() {
+    setUiPaused(false); // unfreeze game logic immediately
+    api.sessions.resume(sessionId).catch(() => {}); // backend extends timers + fires SSE
+    // Visual freeze (pausedAt) is cleared by the incident:timer_extended SSE handler
+    // once expiresAt is updated in the store. Fallback covers sessions with no pending incidents.
+    setTimeout(() => useGameStore.getState().clearPausedAt(), 500);
   }
 
   function handleIncidentClick(incident: Incident) {

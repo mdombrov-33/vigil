@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-04-02
+> Last updated: 2026-04-03
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -250,11 +250,13 @@ Exports: `pauseSession(id)`, `resumeSession(id)`, `isSessionPaused(id)` — used
 
 Spawn interval is randomized **per tick** (45–60s, fresh `Math.random()` each check) — not once at startup. The module-level `SPAWN_INTERVAL_MS` constant is only used for the initial `lastSpawn` offset so the first incident spawns ~10s after session start.
 
-**On resume:** backend extends `expiresAt` for all pending incidents by the duration the session was paused (via `make_interval`), then emits `incident:timer_extended` for each. Frontend `TimerRing` uses raw `expiresAt` directly — no client-side pause offset needed.
+**On resume:** backend calculates `pausedMs = now - pausedAt`, then:
+1. Extends `expiresAt` for all pending incidents by `pausedMs` (via `make_interval`) → emits `incident:timer_extended` per incident
+2. Extends `cooldownUntil` for all resting heroes in this session by `pausedMs` → emits `hero:state_update` per hero
 
 **`POST /sessions/:id/start` idempotency:** checks if `arcSeeds` already exists before running `SessionArcAgent` — prevents double LLM call from React StrictMode double-invoking effects in dev.
 
-**Cooldown resolver** (`services/cooldown-resolver.ts`) — separate 5s interval, finds `resting` heroes where `cooldownUntil <= now` AND `cooldownUntil IS NOT NULL` (excludes `down` heroes), flips to `available`, broadcasts `hero:state_update`.
+**Cooldown resolver** (`services/cooldown-resolver.ts`) — separate 5s interval, finds `resting` heroes where `cooldownUntil <= now` AND `cooldownUntil IS NOT NULL` (excludes `down` heroes), flips to `available`, broadcasts `hero:state_update`. **Session-aware:** if any sessions are paused, heroes whose last mission belongs to a paused session are skipped — they will not recover until the session resumes. This prevents heroes from becoming available while a player is sitting in a modal.
 
 ---
 
@@ -484,11 +486,37 @@ heroStates               — Record<heroId, { availability, health, cooldownUnti
 interruptState           — active interrupt (null when none)
 interruptQueue[]         — queued interrupts if one is already active
 missionOutcomes          — Record<incidentId, MissionOutcomeState>
-uiPaused                 — true while any modal is open
+uiPaused                 — true while any modal is open (controls game logic + backend pause)
+pausedAt                 — wall-clock ms when pause started, null when not paused (controls visual freeze)
 gameOver, sessionComplete, finalScore
 ```
 
-**Pause tracking:** `uiPaused` is a simple boolean — no client-side duration tracking. On pause: backend receives `POST /pause`. On resume: backend receives `POST /resume`, extends all pending incident `expiresAt` in DB, emits `incident:timer_extended` for each. `TimerRing` uses raw `expiresAt - Date.now()` directly, re-reading on each tick.
+**Pause tracking — full freeze system:**
+
+The store has two pause fields: `uiPaused: boolean` and `pausedAt: number | null`.
+
+- `setUiPaused(true)` → sets both: `uiPaused = true`, `pausedAt = Date.now()`. Also fires `POST /pause` to backend.
+- `setUiPaused(false)` → sets only `uiPaused = false`. Does **not** clear `pausedAt` — visual timers stay frozen.
+- `clearPausedAt()` → sets `pausedAt = null`. This is what actually unfreezes the visual display.
+
+**Why two separate fields:** `uiPaused` controls game logic (backend pause, interrupt gate). `pausedAt` controls the visual freeze. They are cleared at different times so that visual timers never show a wrong intermediate value.
+
+**Freeze mechanics (frontend):**
+
+`TimerRing` and `useCooldownDisplay` both use **two separate `useEffect` hooks** with non-overlapping dependency arrays:
+
+1. **Freeze effect** — deps: `[pausedAt]` only. When `pausedAt` becomes non-null, captures the display value at that exact moment. Does NOT re-run when `expiresAt` or `cooldownUntil` changes. This is critical — it means SSE updates that arrive while the player is in a modal (e.g. `incident:timer_extended`, `hero:state_update`) cannot corrupt the frozen display.
+
+2. **Tick effect** — deps: `[expiresAt, pausedAt]` (ring) or `[cooldownUntil, pausedAt]` (hero). When `pausedAt !== null`, returns early — no interval starts. When `pausedAt === null`, starts ticking. Re-runs when the value prop changes so it picks up updated values after resume.
+
+**Resume sequence:**
+
+1. `resumeGame()` calls `setUiPaused(false)` — game logic resumes, `pausedAt` stays set, timers still frozen.
+2. `api.sessions.resume()` fires (fire-and-forget) — backend extends `expiresAt` and `cooldownUntil`, emits SSE.
+3. `incident:timer_extended` SSE arrives → `updateIncidentExpiry()` updates `expiresAt` in store → `clearPausedAt()` is called → tick effect re-runs with correct `expiresAt` and live `Date.now()` → no snap.
+4. 500ms fallback timeout also calls `clearPausedAt()` in case there are no pending incidents (no `incident:timer_extended` will fire).
+
+The key invariant: **`pausedAt` is never cleared before `expiresAt` is correct in the store**. The SSE update and the unfreeze happen atomically in the same handler.
 
 **Interrupt queue:** `setInterrupt` checks if an unresolved interrupt is already active — if so, pushes to `interruptQueue` instead of replacing. `clearInterrupt` dequeues the next one automatically.
 
@@ -559,7 +587,7 @@ Pre-choice SSE sends text + `isHeroSpecific` only. Post-choice SSE (`mission:int
 | `incident:new` | Pin drops onto map |
 | `incident:active` | Pin label updates from EN ROUTE → ON SCENE |
 | `incident:expired` | Pin removed from map |
-| `incident:timer_extended` | TimerRing resets to new `expiresAt` (no visual jump) |
+| `incident:timer_extended` | Updates `expiresAt` in store, then calls `clearPausedAt()` — ring unfreezes only after value is correct |
 | `mission:interrupt` | Interrupt modal auto-opens, game pauses, pin shows ACT NOW pulse |
 | `mission:interrupt:resolved` | Stat icons slide in on all options; count-up roll on chosen option |
 | `mission:outcome` | Incident status → debriefing; pin shows DEBRIEF + ▼ CLICK |

@@ -72,7 +72,8 @@ interface GameStore {
   addLogEntry: (message: string, type: LogEntry["type"]) => void;
   setHeroState: (heroId: string, state: HeroState) => void;
   setMissionOutcome: (incidentId: string, state: MissionOutcomeState) => void;
-  setUiPaused: (v: boolean) => void; // sets uiPaused + snapshots pausedAt
+  setUiPaused: (v: boolean) => void;
+  clearPausedAt: () => void; // unfreeze visual timers — called by SSE or fallback timeout
   setInterrupt: (state: InterruptState) => void;
   setInterruptResolved: (resolved: { chosenOptionId: string; outcome: "success" | "failure"; combinedValue: number | null; options: InterruptOption[] }) => void;
   clearInterrupt: () => void;
@@ -149,7 +150,8 @@ export const useGameStore = create<GameStore>((set) => ({
   setMissionOutcome: (incidentId, state) =>
     set((s) => ({ missionOutcomes: { ...s.missionOutcomes, [incidentId]: state } })),
 
-  setUiPaused: (v) => set({ uiPaused: v, pausedAt: v ? Date.now() : null }),
+  setUiPaused: (v) => set(v ? { uiPaused: true, pausedAt: Date.now() } : { uiPaused: false }),
+  clearPausedAt: () => set({ pausedAt: null }),
   setInterrupt: (state) =>
     set((s) => {
       // If there's already an active unresolved interrupt, queue the new one
