@@ -105,27 +105,28 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
                 style={{ color: "var(--text-muted)" }}>✕</button>
             </div>
 
-            {/* Eval score row */}
+            {/* Dispatch analysis row */}
             {verdict && outcome.evalScore != null && (
               <div className="mx-5 mb-4 px-4 py-3 flex items-center gap-4 shrink-0"
                 style={{ backgroundColor: "var(--panel-raised)", border: "1px solid var(--border)" }}>
-                <span className="font-mono text-3xl font-bold" style={{ color: verdict.color }}>
-                  {outcome.evalScore}
-                </span>
-                <div className="flex flex-col">
-                  <span className="font-mono text-xs font-bold tracking-widest" style={{ color: verdict.color }}>
+                <div className="flex flex-col items-center shrink-0">
+                  <span className="font-mono text-2xl font-bold leading-none" style={{ color: verdict.color }}>
+                    {outcome.evalScore}
+                  </span>
+                  <span className="font-mono text-[8px] tracking-widest mt-0.5" style={{ color: verdict.color }}>
                     {verdict.label}
                   </span>
-                  <span className="font-mono text-[9px]" style={{ color: "var(--text-secondary)" }}>
-                    Dispatch evaluation
-                  </span>
                 </div>
-                {outcome.evalPostOpNote && (
-                  <p className="font-mono text-[10px] leading-relaxed flex-1 pl-4"
-                    style={{ color: "var(--text-primary)", borderLeft: "1px solid var(--border)" }}>
-                    {outcome.evalPostOpNote}
-                  </p>
-                )}
+                <div className="flex flex-col flex-1 min-w-0 pl-4" style={{ borderLeft: "1px solid var(--border)" }}>
+                  <span className="font-mono text-[9px] tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>
+                    DISPATCH ANALYSIS — hero selection vs. incident demands
+                  </span>
+                  {outcome.evalPostOpNote && (
+                    <p className="font-mono text-[10px] leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                      {outcome.evalPostOpNote}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
