@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-04-03
+> Last updated: 2026-04-04
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -274,10 +274,13 @@ Spawn interval is randomized **per tick** (45–60s, fresh `Math.random()` each 
 // Per-stat coverage capped at 1.0, averaged, then squared
 const coverage = avg(statKeys.map(s => min(combined[s] / required[s], 1.0)));
 const successChance = coverage²;
-return Math.random() < successChance ? "success" : "failure";
+const roll = Math.random();
+return { outcome: roll < successChance ? "success" : "failure", roll, dispatchedStats: combined };
 ```
 
 Triage sets only 1–3 relevant stats. All-stat padding wrecks the formula by averaging away gaps.
+
+`getMissionOutcome` returns `{ outcome, roll, dispatchedStats }`. The pipeline includes `roll`, `requiredStats`, and `dispatchedStats` in the `mission:outcome` SSE payload for non-interrupt missions only — used by the roll reveal modal.
 
 **Type 2 (interrupt):**
 
@@ -590,7 +593,7 @@ Pre-choice SSE sends text + `isHeroSpecific` only. Post-choice SSE (`mission:int
 | `incident:timer_extended` | Updates `expiresAt` in store, then calls `clearPausedAt()` — ring unfreezes only after value is correct |
 | `mission:interrupt` | Interrupt modal auto-opens, game pauses, pin shows ACT NOW pulse |
 | `mission:interrupt:resolved` | Stat icons slide in on all options; count-up roll on chosen option |
-| `mission:outcome` | Incident status → debriefing; pin shows DEBRIEF + ▼ CLICK |
+| `mission:outcome` | For non-interrupt: pin shows ROLL + ▼ CLICK (roll reveal pending). For interrupt: pin shows DEBRIEF + ▼ CLICK directly. |
 | `hero:state_update` | Portrait updates state, cooldown ring starts if resting |
 | `session:update` | Health bar and score counter animate |
 | `game:over` | ShiftEndScreen overlay appears |
@@ -610,7 +613,9 @@ Pre-choice SSE sends text + `isHeroSpecific` only. Post-choice SSE (`mission:int
 
 **Incident lifecycle:** `pending` → `en_route` → `active` → `debriefing` → `completed` | `expired`
 
-`debriefing` — mission finished, pin stays on map. Player clicks pin to read debrief, then clicks backdrop or X to dismiss. `POST /:id/acknowledge` moves to `completed` and clears the pin.
+`debriefing` — mission finished, pin stays on map. For non-interrupt missions the pin first shows **ROLL** — player clicks to open the roll reveal modal (`RollRevealModal`), which plays the radar chart + cursor animation, then sets `rollRevealed: true` in the store and the pin switches to **DEBRIEF**. For interrupt missions `rollRevealed` is set to `true` immediately (reveal already happened in `InterruptModal`), so pin goes straight to DEBRIEF. Player clicks DEBRIEF pin → debrief modal (eval + hero reports) → clicks backdrop or X → `POST /:id/acknowledge` moves to `completed` and clears the pin.
+
+**Roll reveal modal (`RollRevealModal`):** Recharts `RadarChart` with two overlapping `Radar` layers — orange for required stats, blue for dispatched combined stats. Below: a two-zone bar (green = success window left, red = failure zone right) with an animated cursor that slides from left and lands at the `roll` position. Cursor color flips to green/red on landing, then outcome badge appears. Pointer events disabled on the chart. Backdrop dismissable only after animation completes. `MissionOutcomeState` carries `rollRevealed: boolean`, `requiredStats`, `dispatchedStats`, `roll`.
 
 ---
 
