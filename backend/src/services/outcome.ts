@@ -39,7 +39,7 @@ export function combineStats(heroes: Hero[]): StatMap {
 export function getMissionOutcome(
   heroes: Hero[],
   requiredStats: RequiredStats,
-): "success" | "failure" {
+): { outcome: "success" | "failure"; roll: number; dispatchedStats: StatMap } {
   const combined = combineStats(heroes);
   const statKeys = Object.keys(requiredStats) as Stat[];
 
@@ -49,7 +49,12 @@ export function getMissionOutcome(
   const coverage = perStat.reduce((a, b) => a + b, 0) / perStat.length;
   const successChance = Math.pow(coverage, 2);
 
-  return Math.random() < successChance ? "success" : "failure";
+  const roll = Math.random();
+  return {
+    outcome: roll < successChance ? "success" : "failure",
+    roll,
+    dispatchedStats: combined,
+  };
 }
 
 // Score individual heroes against required stats — higher = better match.

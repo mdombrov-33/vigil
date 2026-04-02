@@ -44,6 +44,10 @@ export interface MissionOutcomeState {
   evalScore: number | null;
   evalVerdict: EvalVerdict | null;
   evalPostOpNote: string | null;
+  rollRevealed: boolean;
+  requiredStats: Record<string, number>;
+  dispatchedStats: Record<string, number>;
+  roll: number | null;
 }
 
 interface GameStore {
@@ -72,6 +76,7 @@ interface GameStore {
   addLogEntry: (message: string, type: LogEntry["type"]) => void;
   setHeroState: (heroId: string, state: HeroState) => void;
   setMissionOutcome: (incidentId: string, state: MissionOutcomeState) => void;
+  setRollRevealed: (incidentId: string) => void;
   setUiPaused: (v: boolean) => void;
   clearPausedAt: () => void; // unfreeze visual timers — called by SSE or fallback timeout
   setInterrupt: (state: InterruptState) => void;
@@ -149,6 +154,13 @@ export const useGameStore = create<GameStore>((set) => ({
 
   setMissionOutcome: (incidentId, state) =>
     set((s) => ({ missionOutcomes: { ...s.missionOutcomes, [incidentId]: state } })),
+
+  setRollRevealed: (incidentId) =>
+    set((s) => {
+      const existing = s.missionOutcomes[incidentId];
+      if (!existing) return s;
+      return { missionOutcomes: { ...s.missionOutcomes, [incidentId]: { ...existing, rollRevealed: true } } };
+    }),
 
   setUiPaused: (v) => set(v ? { uiPaused: true, pausedAt: Date.now() } : { uiPaused: false }),
   clearPausedAt: () => set({ pausedAt: null }),

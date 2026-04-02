@@ -14,6 +14,7 @@ import { ShiftEndScreen } from "@/components/game/ShiftEndScreen";
 import { HeroDetailModal } from "@/components/modals/HeroDetailModal";
 import { InterruptModal } from "@/components/modals/InterruptModal";
 import { DebriefModal } from "@/components/modals/DebriefModal";
+import { RollRevealModal } from "@/components/modals/RollRevealModal";
 import type { Hero, Incident } from "@/types/api";
 
 export default function ActiveShiftPage() {
@@ -22,12 +23,13 @@ export default function ActiveShiftPage() {
   const sessionId = params.sessionId as string;
   const queryClient = useQueryClient();
 
-  const { setSession, reset, updateIncidentStatus, removeIncident, interruptState, missionOutcomes, setUiPaused, sessionComplete, gameOver, score, cityHealth } = useGameStore();
+  const { setSession, reset, updateIncidentStatus, removeIncident, interruptState, missionOutcomes, setUiPaused, setRollRevealed, sessionComplete, gameOver, score, cityHealth } = useGameStore();
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [selectedHeroIds, setSelectedHeroIds] = useState<string[]>([]);
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
   const [interruptModalOpen, setInterruptModalOpen] = useState(false);
   const [debriefIncidentId, setDebriefIncidentId] = useState<string | null>(null);
+  const [rollRevealIncidentId, setRollRevealIncidentId] = useState<string | null>(null);
   const [draggingHeroId, setDraggingHeroId] = useState<string | null>(null);
   const { data: heroes = [] } = useHeroes();
   const { data: sessionData } = useSession(sessionId);
@@ -91,6 +93,9 @@ export default function ActiveShiftPage() {
       pauseGame();
     } else if (incident.status === "active" && interruptState?.incidentId === incident.id) {
       setInterruptModalOpen(true);
+      pauseGame();
+    } else if (incident.status === "debriefing" && missionOutcomes[incident.id]?.rollRevealed === false) {
+      setRollRevealIncidentId(incident.id);
       pauseGame();
     } else if (incident.status === "debriefing") {
       setDebriefIncidentId(incident.id);
@@ -183,6 +188,14 @@ export default function ActiveShiftPage() {
           );
         })() : null}
       </DragOverlay>
+      <RollRevealModal
+        outcome={rollRevealIncidentId != null ? (missionOutcomes[rollRevealIncidentId] ?? null) : null}
+        onClose={() => {
+          if (rollRevealIncidentId) setRollRevealed(rollRevealIncidentId);
+          setRollRevealIncidentId(null);
+          resumeGame();
+        }}
+      />
       <DebriefModal
         outcome={debriefIncidentId != null ? (missionOutcomes[debriefIncidentId] ?? null) : null}
         incidentId={debriefIncidentId}

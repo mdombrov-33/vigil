@@ -10,6 +10,7 @@ interface Props {
   y: number;
   onClick: () => void;
   hasInterrupt: boolean;
+  rollPending?: boolean;
 }
 
 const dangerColor = {
@@ -92,14 +93,14 @@ function TimerRing({ createdAt, expiresAt, color }: { createdAt: string; expires
   );
 }
 
-export function IncidentPin({ incident, x, y, onClick, hasInterrupt }: Props) {
+export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending }: Props) {
   const color = dangerColor[incident.dangerLevel];
   const isPending = incident.status === "pending";
   const isDebriefing = incident.status === "debriefing";
   const isDispatched = ["en_route", "active"].includes(incident.status);
   const isClickable = isPending || isDebriefing || hasInterrupt;
 
-  const label = statusLabel[incident.status] ?? incident.title;
+  const label = rollPending ? "ROLL" : (statusLabel[incident.status] ?? incident.title);
 
   return (
     <button
@@ -180,7 +181,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt }: Props) {
       {/* Action hint below */}
       {isDebriefing && (
         <span className="absolute font-mono pointer-events-none whitespace-nowrap"
-          style={{ top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", fontSize: 10, letterSpacing: "0.1em", color: "#fbbf24", backgroundColor: "rgba(0,0,0,0.75)", padding: "2px 6px", border: "1px solid #fbbf2440" }}>
+          style={{ top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", fontSize: 10, letterSpacing: "0.1em", color: rollPending ? color : "#fbbf24", backgroundColor: "rgba(0,0,0,0.75)", padding: "2px 6px", border: `1px solid ${rollPending ? color : "#fbbf24"}40` }}>
           ▼ CLICK
         </span>
       )}

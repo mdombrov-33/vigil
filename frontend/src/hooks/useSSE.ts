@@ -117,6 +117,10 @@ export function useSSE(sessionId: string | null) {
         evalScore: data.evalScore,
         evalVerdict: data.evalVerdict,
         evalPostOpNote: data.evalPostOpNote,
+        rollRevealed: data.hasInterrupt,
+        requiredStats: data.requiredStats ?? {},
+        dispatchedStats: data.dispatchedStats ?? {},
+        roll: data.roll ?? null,
       });
       const outcomeType = data.outcome === "success" ? "success" : "failure";
       const title = data.title ? `[${data.title}] ` : "";

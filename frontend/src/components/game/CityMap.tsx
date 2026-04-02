@@ -24,6 +24,7 @@ function assignLocations(incidents: Incident[]) {
 export function CityMap({ onIncidentClick, children }: Props) {
   const incidents = useGameStore((s) => s.incidents);
   const interruptState = useGameStore((s) => s.interruptState);
+  const missionOutcomes = useGameStore((s) => s.missionOutcomes);
   const activeIncidents = incidents.filter(
     (i) => !["completed", "expired"].includes(i.status)
   );
@@ -50,6 +51,7 @@ export function CityMap({ onIncidentClick, children }: Props) {
           y={location.y}
           onClick={() => onIncidentClick(incident)}
           hasInterrupt={interruptState?.incidentId === incident.id}
+          rollPending={missionOutcomes[incident.id]?.rollRevealed === false}
         />
       ))}
       {children}

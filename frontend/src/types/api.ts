@@ -100,6 +100,10 @@ export interface SSEMissionOutcome {
   evalScore: number | null;
   evalVerdict: EvalVerdict | null;
   evalPostOpNote: string | null;
+  hasInterrupt: boolean;
+  requiredStats?: Record<string, number>;
+  dispatchedStats?: Record<string, number>;
+  roll?: number;
 }
 
 export interface SSEHeroStateUpdate {

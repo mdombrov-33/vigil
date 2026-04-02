@@ -234,6 +234,8 @@ export async function runMissionPipeline(
   // Mission in progress
   const halfMs = (incident.missionDuration * 1000) / 2;
   let outcome: "success" | "failure";
+  let missionRoll: number | undefined;
+  let missionDispatchedStats: ReturnType<typeof combineStats> | undefined;
   let interruptContext: MissionContext["interrupt"] | undefined;
 
   if (incident.hasInterrupt && incident.interruptOptions) {
@@ -286,10 +288,13 @@ export async function runMissionPipeline(
     }
   } else {
     await sleep(incident.missionDuration * 1000);
-    outcome = getMissionOutcome(
+    const result = getMissionOutcome(
       dispatchedHeroes,
       incident.requiredStats as RequiredStats,
     );
+    outcome = result.outcome;
+    missionRoll = result.roll;
+    missionDispatchedStats = result.dispatchedStats;
   }
   console.log(`[mission-pipeline] outcome: ${outcome}`);
   log(sessionId, `Mission outcome: ${outcome.toUpperCase()}`);
@@ -423,6 +428,12 @@ export async function runMissionPipeline(
     evalScore: Math.round(evalResult.score),
     evalVerdict: evalResult.verdict,
     evalPostOpNote: evalResult.postOpNote,
+    hasInterrupt: incident.hasInterrupt,
+    ...(missionRoll !== undefined && {
+      roll: missionRoll,
+      requiredStats: incident.requiredStats as Record<string, number>,
+      dispatchedStats: missionDispatchedStats,
+    }),
   });
 
   console.log(`[mission-pipeline] done — mission ${mission.id} complete`);
