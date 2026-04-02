@@ -16,6 +16,12 @@ Rules:
 - dangerLevel: 1=minor (green), 2=standard (yellow), 3=major (red)
 - missionDuration: time heroes spend on scene in seconds. Minor ~30s, standard ~60s, major ~90–120s
 - expiryDuration: time before incident expires unresolved. Minor ~60s, standard ~120s, major ~180s
+- hints: 2–3 short field intel notes shown to the player as dispatch guidance. Write them after you've determined requiredStats — each hint should implicitly signal one of the required stats without ever naming it. Use situational language, not stat language.
+  Three tiers of ambiguity — mix them:
+    Opaque (hardest to read):   "They won't stop moving."
+    Semi-transparent:           "Civilian exposure is high and rising."
+    Near-transparent:           "Every second of delay compounds the structural risk."
+  Never write "fast response needed", "requires strength", or anything that names a stat directly. The player infers; the hint just frames the situation accurately.
 - hasInterrupt: true for dramatic mid-mission decision points. Not every incident needs one.
 - interruptOptions: if hasInterrupt, provide 2–4 options. Exactly one must have isHeroSpecific=true — guaranteed success if the top hero was dispatched, no stat check needed, do NOT set requiredStat/requiredValue on it. All other options must have requiredStat and requiredValue. All option text must read as a plain action description — never reference "your hero", "if you sent", or any meta-game language. Same tone as the other options.`,
   outputType: TriageOutputSchema,

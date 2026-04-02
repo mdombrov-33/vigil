@@ -43,6 +43,13 @@
       "when": 1774795063793,
       "tag": "0005_add_debriefing_status",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775125821302,
+      "tag": "0006_incident_hints",
+      "breakpoints": true
     }
   ]
 }

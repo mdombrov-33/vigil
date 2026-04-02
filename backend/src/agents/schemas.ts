@@ -50,6 +50,11 @@ export const TriageOutputSchema = z.object({
     })
     .partial()
     .describe("Stats this incident tests and how heavily (1–10). Only include relevant stats."),
+  hints: z
+    .array(z.string())
+    .min(1)
+    .max(3)
+    .describe("2–3 short field intel notes for the player. Implicitly signal required stats without naming them. Ambiguous but accurate."),
   slotCount: z.number().min(1).max(4).describe("Max hero slots"),
   dangerLevel: z.number().min(1).max(3).describe("1=minor 2=standard 3=major"),
   missionDuration: z.number().describe("Seconds heroes are on scene"),
