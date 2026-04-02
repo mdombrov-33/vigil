@@ -59,6 +59,7 @@ interface GameStore {
   missionOutcomes: Record<number, MissionOutcomeState>;
   uiPaused: boolean;
   gameOver: boolean;
+  sessionComplete: boolean;
   finalScore: number | null;
 
   // Actions
@@ -76,6 +77,7 @@ interface GameStore {
   setInterruptResolved: (resolved: { chosenOptionId: string; outcome: "success" | "failure"; combinedValue: number | null; options: InterruptOption[] }) => void;
   clearInterrupt: () => void;
   setGameOver: (finalScore: number) => void;
+  setSessionComplete: (finalScore: number) => void;
   reset: () => void;
 }
 
@@ -93,6 +95,7 @@ export const useGameStore = create<GameStore>((set) => ({
   missionOutcomes: {},
   uiPaused: false,
   gameOver: false,
+  sessionComplete: false,
   finalScore: null,
 
   setSession: (sessionId, cityHealth, score) =>
@@ -168,6 +171,7 @@ export const useGameStore = create<GameStore>((set) => ({
     }),
 
   setGameOver: (finalScore) => set({ gameOver: true, finalScore }),
+  setSessionComplete: (finalScore) => set({ sessionComplete: true, finalScore }),
 
   reset: () =>
     set({
@@ -182,6 +186,7 @@ export const useGameStore = create<GameStore>((set) => ({
       missionOutcomes: {},
       uiPaused: false,
       gameOver: false,
+      sessionComplete: false,
       finalScore: null,
     }),
 }));

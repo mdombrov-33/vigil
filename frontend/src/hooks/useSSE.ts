@@ -12,6 +12,7 @@ import type {
   SSEHeroStateUpdate,
   SSESessionUpdate,
   SSEGameOver,
+  SSESessionComplete,
   Incident,
 } from "@/types/api";
 
@@ -143,6 +144,11 @@ export function useSSE(sessionId: string | null) {
     es.addEventListener("game:over", (e) => {
       const data = JSON.parse(e.data) as SSEGameOver;
       useGameStore.getState().setGameOver(data.finalScore);
+    });
+
+    es.addEventListener("session:complete", (e) => {
+      const data = JSON.parse(e.data) as SSESessionComplete;
+      useGameStore.getState().setSessionComplete(data.finalScore);
     });
 
     return () => {

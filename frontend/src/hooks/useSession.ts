@@ -9,6 +9,11 @@ export async function createSession(): Promise<Session> {
   return res.json();
 }
 
+export async function startSession(id: string): Promise<void> {
+  const res = await fetch(`${API}/api/v1/sessions/${id}/start`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to start session");
+}
+
 export async function fetchSession(id: string): Promise<Session> {
   const res = await fetch(`${API}/api/v1/sessions/${id}`);
   if (!res.ok) throw new Error("Failed to fetch session");

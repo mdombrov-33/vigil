@@ -8,6 +8,7 @@ import { useGameStore } from "@/stores/gameStore";
 import { useHeroes } from "@/hooks/useHeroes";
 import { useSSE } from "@/hooks/useSSE";
 import { GameLayout } from "@/components/game/GameLayout";
+import { ShiftEndScreen } from "@/components/game/ShiftEndScreen";
 import { HeroDetailModal } from "@/components/modals/HeroDetailModal";
 import { InterruptModal } from "@/components/modals/InterruptModal";
 import { DebriefModal } from "@/components/modals/DebriefModal";
@@ -21,7 +22,7 @@ export default function ActiveShiftPage() {
   const sessionId = params.sessionId as string;
   const queryClient = useQueryClient();
 
-  const { setSession, reset, updateIncidentStatus, removeIncident, interruptState, missionOutcomes, setUiPaused } = useGameStore();
+  const { setSession, reset, updateIncidentStatus, removeIncident, interruptState, missionOutcomes, setUiPaused, sessionComplete, gameOver, score, cityHealth } = useGameStore();
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [selectedHeroIds, setSelectedHeroIds] = useState<string[]>([]);
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
@@ -36,11 +37,9 @@ export default function ActiveShiftPage() {
   useEffect(() => {
     reset();
     setSession(sessionId, 100, 0);
-    Promise.all([
-      fetch(`${API}/api/v1/sessions/${sessionId}`).then((r) => r.json()),
-      fetch(`${API}/api/v1/sessions/${sessionId}/start`, { method: "POST" }),
-    ])
-      .then(([s]: [{ cityHealth: number; score: number }]) => {
+    fetch(`${API}/api/v1/sessions/${sessionId}`)
+      .then((r) => r.json())
+      .then((s: { cityHealth: number; score: number }) => {
         setSession(sessionId, s.cityHealth, s.score);
       })
       .catch(() => {});
@@ -125,6 +124,13 @@ export default function ActiveShiftPage() {
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      {(sessionComplete || gameOver) && (
+        <ShiftEndScreen
+          score={score}
+          cityHealth={cityHealth}
+          onEndShift={handleEndShift}
+        />
+      )}
       <GameLayout
         onIncidentClick={handleIncidentClick}
         onHeroClick={(hero) => { setSelectedHero(hero); pauseGame(); }}

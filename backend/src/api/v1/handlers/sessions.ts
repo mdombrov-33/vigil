@@ -4,9 +4,12 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { sendJson } from "@/utils/response";
 import { registerSession, pauseSession, resumeSession } from "@/services/game-loop.js";
 import { send } from "@/sse/manager.js";
+import { runSessionArcAgent } from "@/agents/session-arc.js";
 
 // Track when each session was paused so resume can extend timers
 const sessionPausedAt = new Map<string, number>();
+// In-memory lock — prevents double arc generation from React StrictMode double-invoking effects
+const arcGenerating = new Set<string>();
 
 // POST /api/v1/sessions
 export async function createSession(_req: Request, res: Response) {
@@ -47,6 +50,25 @@ export async function startSession(req: Request, res: Response) {
     missionsCompleted: 0,
     missionsFailed: 0,
   });
+
+  // Generate narrative arc seeds — skip if already generated or currently generating
+  if (!session.arcSeeds && !arcGenerating.has(session.id)) {
+    arcGenerating.add(session.id);
+    try {
+      const allHeroes = await db.select({ alias: heroes.alias, bio: heroes.bio }).from(heroes);
+      const arcResult = await runSessionArcAgent(allHeroes);
+      console.log(`[session] arc seeds generated — ${arcResult.arcs.map((a) => a.name).join(", ")} — limit: ${arcResult.incidentLimit}`);
+
+      await db.update(sessions).set({
+        arcSeeds: arcResult.arcs,
+        sessionMood: arcResult.sessionMood,
+        incidentLimit: arcResult.incidentLimit,
+        incidentCount: 0,
+      }).where(eq(sessions.id, session.id));
+    } finally {
+      arcGenerating.delete(session.id);
+    }
+  }
 
   registerSession(session.id);
   sendJson(res, 200, { started: true });

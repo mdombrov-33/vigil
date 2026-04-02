@@ -25,6 +25,11 @@ export const sessions = pgTable("sessions", {
   score: integer("score").notNull().default(0),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   endedAt: timestamp("ended_at"),
+  // Session arc system
+  arcSeeds: jsonb("arc_seeds"),       // ArcSeed[] — generated at shift start
+  sessionMood: text("session_mood"),  // one-sentence flavor note from SessionArcAgent
+  incidentLimit: integer("incident_limit"), // total incidents this session will spawn
+  incidentCount: integer("incident_count").notNull().default(0), // how many spawned so far
 });
 
 export type Session = typeof sessions.$inferSelect;
@@ -82,6 +87,7 @@ export const incidents = pgTable("incidents", {
   interruptTrigger: varchar("interrupt_trigger", { length: 500 }), // one sentence context shown in interrupt modal
   interruptOptions: jsonb("interrupt_options"), // InterruptOption[] | null
   topHeroId: uuid("top_hero_id"),
+  arcId: varchar("arc_id", { length: 10 }), // which arc this incident advances (arc_a, arc_b) or null if standalone
   // Lifecycle
   status: incidentStatusEnum("status").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

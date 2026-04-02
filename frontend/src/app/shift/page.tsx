@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { GameLayout } from "@/components/game/GameLayout";
 import { StartScreen } from "@/components/game/StartScreen";
-import { createSession } from "@/hooks/useSession";
+import { createSession, startSession } from "@/hooks/useSession";
 
 export default function ShiftPage() {
   const router = useRouter();
@@ -16,6 +16,7 @@ export default function ShiftPage() {
     setStarting(true);
     try {
       const session = await createSession();
+      await startSession(session.id);
       router.push(`/shift/${session.id}`);
     } catch {
       setStarting(false);

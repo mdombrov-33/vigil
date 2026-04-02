@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-03-31
+> Last updated: 2026-04-02
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -96,11 +96,12 @@ Session ID is internal plumbing — never shown to the user, just lives in the U
 
 | Agent                      | Model | MCP | Role                                                                                                                          |
 | -------------------------- | ----- | --- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **IncidentGeneratorAgent** | fast  | no  | Generates incident title + description (flavor only). No game mechanics.                                                      |
-| **TriageAgent**            | fast  | no  | Extracts required stats (1–3 only), slot count, danger level, timing, interrupt options from description.                     |
+| **SessionArcAgent**        | fast  | no  | Generates 1–2 narrative arc seeds + incident limit for a new session. Runs once at session start.                             |
+| **IncidentGeneratorAgent** | fast  | no  | Generates incident title + description + arcId. Receives full session history + arc beat context (hero reports, eval) for narrative continuity.  |
+| **TriageAgent**            | fast  | no  | Extracts required stats (1–3 only), slot count, danger level, timing, interrupt options, hints[], interruptTrigger.           |
 | **NarrativePickAgent**     | full  | no  | Picks `topHeroId` based on hero bio/powers/character fit — not stats. Used for interrupt hero-specific option.                |
 | **DispatcherAgent**        | fast  | yes | Stores hidden stat-based recommendation via `save_dispatch_recommendation`.                                                   |
-| **HeroReportAgent**        | full  | yes | One instance per hero, personality as system prompt. Calls `get_hero_mission_history`, writes 3-sentence first-person report. |
+| **HeroReportAgent**        | full  | yes | One instance per hero, personality as system prompt. Calls `get_hero_mission_history`, writes 3-sentence first-person report. Receives MissionContext (teammates, isLead, interrupt). |
 | **ReflectionAgent**        | fast  | no  | Reviews hero report — rejects only for wrong voice, generic content, or outcome mismatch. Max 2 iterations.                   |
 | **EvalAgent**              | full  | yes | Calls `get_dispatch_recommendation`, compares to player dispatch, scores 0–10, outputs verdict + postOpNote.                  |
 
@@ -109,6 +110,53 @@ Session ID is internal plumbing — never shown to the user, just lives in the U
 - **Stat-based** (`scoreHeroes`) → dispatcher recommendation, eval grading
 - **Narrative-based** (`NarrativePickAgent`) → `topHeroId` on incident, unlocks hero-specific interrupt option
 
+### SessionArcAgent
+
+Runs once per session start (in `handlers/sessions.ts`). Receives the full hero roster (alias + bio) so personal arcs can reference specific heroes by name. Guarded against double-call — skips re-generation if `arcSeeds` already exists on the session (React StrictMode fires effects twice in dev).
+
+Output: `{ arcs: ArcSeed[], incidentLimit: number, sessionMood: string }`
+
+- `sessionMood` — stored on sessions as `session_mood text`, passed to `IncidentGeneratorAgent` via `SessionContext` as overall tone context
+- Each `ArcSeed`: `{ id, name, concept, tone, targetBeats }` — `tone` is a freeform string (e.g. `"darkly comic"`, `"tense"`, `"bureaucratic nightmare"`), not an enum
+- Arc types: villain/antagonist, crisis chain, diplomatic/political, mystery/puzzle, absurd recurring, personal arc, faction war
+
+### IncidentGeneratorAgent
+
+Receives `SessionContext`: `{ arcSeeds, sessionMood, recentIncidents, arcBeats, incidentNumber, incidentLimit }`.
+
+- `recentIncidents` — full session history (all incidents), lightweight: title + outcome only. Used for variety/repetition avoidance.
+- `arcBeats` — rich history grouped by arcId: previous beats for each arc including hero field reports, eval verdict, SDN post-op note. Used for narrative continuity within arc threads.
+- Generator outputs `arcId` alongside title/description — declaring which arc it's advancing, or null if standalone. Stored on the incident.
+
+Builds a contextual prompt with arc seeds, arc beat history, recent incident list, session mood, and position guidance (early/mid/late shift pressure). Generates incidents in one of 8 rotating format patterns:
+
+- `DISPATCH LOG` — terse official call
+- `CALLER TRANSCRIPT` — panicked civilian call fragments
+- `INTERCEPTED COMMS` — enemy radio chatter
+- `FIELD UNIT REPORT` — officer on scene
+- `BREAKING NEWS FRAGMENT` — broadcast cut
+- `ANONYMOUS TIP` — cryptic informant message
+- `INTERNAL MEMO` — bureaucratic/political flavor
+- `HQ SATELLITE NOTE` — drone/overhead observation
+
+**Critical:** the format name is never included as a prefix in the output — it's a production style only.
+
+### TriageAgent
+
+Generates:
+- `requiredStats` — 1–3 stat keys only (no padding)
+- `slotCount` — 1–3; 1-slot missions are valid for sniper roles, data extractions, volatile negotiations
+- `hints[]` — 1–3 field intel bullets with tiered ambiguity (opaque / semi-transparent / near-transparent)
+- `interruptTrigger` — one sentence in dispatch voice, past tense, specific situation that caused the interrupt
+
+### HeroReportAgent
+
+Receives `MissionContext`: `{ teammates: string[], isLead: boolean, interrupt?: { chosenOptionText, outcome } }`
+
+- `isLead` — true if this hero is `topHeroId` (the narrative pick). Lead hero's report gets "You led the operation." added to the team line.
+- `teammates` — other hero aliases on the mission. Heroes can reference each other.
+- `interrupt` — if the mission had an interrupt, the chosen option text and outcome are included so heroes can mention it in their report.
+
 ---
 
 ## Pipelines
@@ -116,12 +164,16 @@ Session ID is internal plumbing — never shown to the user, just lives in the U
 ### Incident Creation Pipeline (`runIncidentCreationPipeline`)
 
 ```
-1. IncidentGeneratorAgent + fetch available heroes   [parallel]
-2. TriageAgent + NarrativePickAgent                  [parallel]
-3. scoreHeroes() — deterministic stat ranking        [pure code]
-4. INSERT incident → DB
-5. DispatcherAgent → save_dispatch_recommendation
-6. SSE: incident:new → pin appears on map
+1. Fetch session (arcSeeds, sessionMood, incidentCount, incidentLimit) + available heroes   [parallel]
+2. Fetch full incident history — all incidents with mission outcomes + eval data
+3. Fetch hero reports for arc incidents only (grouped by arcId)
+4. IncidentGeneratorAgent(SessionContext)    — builds arc-aware prompt with beat history
+5. TriageAgent + NarrativePickAgent          [parallel]
+6. scoreHeroes() — deterministic stat ranking  [pure code]
+7. INSERT incident (with hints, interruptTrigger, arcId) → DB
+8. Increment session.incidentCount atomically
+9. DispatcherAgent → save_dispatch_recommendation
+10. SSE: incident:new (with hints[]) → pin appears on map
 ```
 
 ### Mission Pipeline (`runMissionPipeline`)
@@ -141,7 +193,7 @@ TYPE 1 — No interrupt:
 
 TYPE 2 — Interrupt:
   8a. sleep(missionDuration / 2)
-  8b. SSE: mission:interrupt — options with text only (no stat info), topHeroId included
+  8b. SSE: mission:interrupt — options with text + trigger sentence (no stat info)
   8c. waitForChoice(missionId, sessionId, remainingMs) — pause-aware polling loop
   8d. If timeout → auto-fail
   8e. getInterruptOutcome() — stat check or hero-specific check
@@ -149,8 +201,8 @@ TYPE 2 — Interrupt:
 
 9.  If failure → dockCityHealth(-10)
 10. UPDATE incident → debriefing, heroes → missionsCompleted/Failed counters
-11. HeroReportAgent × N                              [parallel]
-12. ReflectionAgent × N                              [parallel]
+11. HeroReportAgent × N (with MissionContext)         [parallel]
+12. ReflectionAgent × N                               [parallel]
 13. UPDATE missionHeroes.report per hero
 14. UPDATE missions.outcome + completedAt
 15. UPDATE heroes → resting + cooldownUntil
@@ -170,15 +222,17 @@ One persistent connection per session: `GET /api/v1/sse?sessionId=xxx`
 | Event                        | When                              | Payload                                                                                                          |
 | ---------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `log`                        | Throughout pipeline               | `{ message }`                                                                                                    |
-| `incident:new`               | Incident pipeline complete        | `{ incidentId, title, description, slotCount, dangerLevel, hasInterrupt, createdAt, expiresAt }`                 |
+| `incident:new`               | Incident pipeline complete        | `{ incidentId, title, description, hints, slotCount, dangerLevel, hasInterrupt, createdAt, expiresAt }`          |
 | `incident:active`            | After travel sleep                | `{ incidentId }`                                                                                                 |
 | `incident:expired`           | Expiry timer fires                | `{ incidentId }`                                                                                                 |
-| `mission:interrupt`          | Halfway through missionDuration   | `{ incidentId, missionId, topHeroId, heroIds, options }` (text only, no stats)                                   |
+| `incident:timer_extended`    | Session resume (per pending inc.) | `{ incidentId, expiresAt }` — new wall-clock expiry after backend extends timer                                  |
+| `mission:interrupt`          | Halfway through missionDuration   | `{ incidentId, missionId, topHeroId, heroIds, trigger, options }` (text only, no stats)                          |
 | `mission:interrupt:resolved` | After player choice               | `{ incidentId, missionId, chosenOptionId, outcome, combinedValue, options }` (full options with stat info)       |
 | `mission:outcome`            | Mission pipeline complete         | `{ incidentId, missionId, outcome, title, heroes, evalScore, evalVerdict, evalPostOpNote }`                      |
 | `hero:state_update`          | After hero state changes          | `{ heroId, alias, availability, health, cooldownUntil }`                                                         |
 | `session:update`             | After city health or score change | `{ cityHealth, score }`                                                                                          |
 | `game:over`                  | cityHealth reaches 0              | `{ finalScore }`                                                                                                 |
+| `session:complete`           | All incidents resolved at limit   | `{ finalScore }`                                                                                                 |
 
 **SSE manager** (`backend/src/sse/manager.ts`): `send(sessionId, event, data)` for session-scoped events, `broadcast(event, data)` for global (cooldown resolver uses broadcast since heroes are global).
 
@@ -189,9 +243,16 @@ One persistent connection per session: `GET /api/v1/sse?sessionId=xxx`
 Runs every 5s per active SSE session. Skips entirely if session is paused.
 
 - **Expiry check** — finds `pending` incidents where `expiresAt < now`, marks `expired`, docks -15 city health, emits `incident:expired`
-- **Spawn check** — auto-generates new incident every 45-60s if active incidents < 4
+- **Spawn check** — checks `session.incidentCount` vs `session.incidentLimit`. If limit not reached: spawns a new incident every 45–60s (randomized per-tick) if active incidents < 4. Increments `incidentCount` atomically before spawning.
+- **Completion check** — when `incidentCount >= incidentLimit` and no active incidents remain: calls `completeSession()` → emits `session:complete`, marks `endedAt`, stops the loop for that session.
 
 Exports: `pauseSession(id)`, `resumeSession(id)`, `isSessionPaused(id)` — used by pause/resume API endpoints and the interrupt gate.
+
+Spawn interval is randomized **per tick** (45–60s, fresh `Math.random()` each check) — not once at startup. The module-level `SPAWN_INTERVAL_MS` constant is only used for the initial `lastSpawn` offset so the first incident spawns ~10s after session start.
+
+**On resume:** backend extends `expiresAt` for all pending incidents by the duration the session was paused (via `make_interval`), then emits `incident:timer_extended` for each. Frontend `TimerRing` uses raw `expiresAt` directly — no client-side pause offset needed.
+
+**`POST /sessions/:id/start` idempotency:** checks if `arcSeeds` already exists before running `SessionArcAgent` — prevents double LLM call from React StrictMode double-invoking effects in dev.
 
 **Cooldown resolver** (`services/cooldown-resolver.ts`) — separate 5s interval, finds `resting` heroes where `cooldownUntil <= now` AND `cooldownUntil IS NOT NULL` (excludes `down` heroes), flips to `available`, broadcasts `hero:state_update`.
 
@@ -242,6 +303,33 @@ Triage sets only 1–3 relevant stats. All-stat padding wrecks the formula by av
 
 Both emit `session:update` SSE with current `{ cityHealth, score }`.
 
+**Shift end grade** (shown on `ShiftEndScreen`):
+
+| Grade | Label        | Score threshold |
+|-------|--------------|-----------------|
+| S     | EXEMPLARY    | ≥ 600           |
+| A     | OUTSTANDING  | ≥ 400           |
+| B     | COMPETENT    | ≥ 250           |
+| C     | ADEQUATE     | ≥ 100           |
+| D     | NEEDS REVIEW | < 100           |
+
+---
+
+## Database Schema (key additions)
+
+**Sessions table:**
+- `arcSeeds jsonb` — array of ArcSeed objects from SessionArcAgent
+- `sessionMood text` — one-sentence flavor note from SessionArcAgent, passed to incident generator
+- `incidentLimit integer` — total incidents to spawn this session (set by SessionArcAgent)
+- `incidentCount integer not null default 0` — how many have been spawned so far
+
+**Incidents table:**
+- `hints jsonb` — array of 1–3 field intel strings from TriageAgent
+- `interruptTrigger varchar(500)` — one-sentence dispatch-voice context for interrupt modal
+- `arcId varchar(10)` — which arc this incident advances (`arc_a`, `arc_b`) or null if standalone
+
+**Migrations:** always use `make generate name=<migration_name>` — never hand-write SQL migration files.
+
 ---
 
 ## MCP Server
@@ -270,9 +358,9 @@ Agent (backend) → MCPServerStreamableHttp → localhost:{PORT}/mcp → handler
 | ------ | ----------------------------------- | ----------------------------------------------------------------- |
 | POST   | `/api/v1/sessions`                  | Create session                                                    |
 | GET    | `/api/v1/sessions/:id`              | Get session state (cityHealth, score)                             |
-| POST   | `/api/v1/sessions/:id/start`        | Start game loop, reset heroes + stale incidents for this session  |
+| POST   | `/api/v1/sessions/:id/start`        | Run SessionArcAgent, store arc seeds + limit, start game loop     |
 | POST   | `/api/v1/sessions/:id/pause`        | Pause game loop + interrupt timer for this session                |
-| POST   | `/api/v1/sessions/:id/resume`       | Resume game loop + interrupt timer                                |
+| POST   | `/api/v1/sessions/:id/resume`       | Resume game loop + interrupt timer; extends pending incident timers |
 | GET    | `/api/v1/incidents?sessionId=`      | Active incidents for map (pending/en_route/active/debriefing)     |
 | GET    | `/api/v1/incidents/:id`             | Single incident detail                                            |
 | POST   | `/api/v1/incidents/generate`        | Manually trigger incident creation pipeline                       |
@@ -347,11 +435,13 @@ Comic book aesthetic, dark theme.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Incident Modal:** two-column layout — description left, hero slots + dispatch button right. Backdrop click or X closes. Single "Dispatch" button — no confirm step.
+**Incident Modal:** single scrollable column — description at top, FIELD INTEL section (divider + hint bullets with danger-color `▸` markers) in the middle, hero slots + dispatch button at the bottom. Width: `max-w-xl`. Backdrop click or X closes. Single "Dispatch" button — no confirm step.
 
-**Interrupt Modal:** auto-opens when `mission:interrupt` SSE arrives (game pauses automatically). Single click on an option submits immediately — no confirm step. After choice: stat icons slide in on all options; chosen option shows a count-up roll animation (number climbs to combined value, then color shifts green/red). Auto-closes after 7 seconds. X button for early dismiss. If a second interrupt fires while one is pending, it queues — shown after the current one closes.
+**Interrupt Modal:** auto-opens when `mission:interrupt` SSE arrives (game pauses automatically). Shows `interruptState.trigger` sentence above "Select an approach" when not yet resolved. Single click on an option submits immediately — no confirm step. After choice: stat icons slide in on all options; chosen option shows a count-up roll animation (number climbs to combined value, then color shifts green/red). Auto-closes after 7 seconds. X button for early dismiss. If a second interrupt fires while one is pending, it queues — shown after the current one closes.
 
-**Debrief Modal:** opens on pin click when incident is in `debriefing` state. Shows eval score, hero field reports (tabbed if multiple heroes). Click backdrop or X to dismiss — no explicit confirm button.
+**Debrief Modal:** opens on pin click when incident is in `debriefing` state. Shows eval section labeled "DISPATCH ANALYSIS — hero selection vs. incident demands" (score + verdict), then hero field reports (tabbed if multiple heroes). Click backdrop or X to dismiss — no explicit confirm button.
+
+**Shift End Screen:** full-screen overlay when `sessionComplete || gameOver`. Shows SDN — SHIFT COMPLETE header, grade letter (96px), grade label, score, city HP, and "End Shift" button. framer-motion fade-in. Grade → `handleEndShift()` → back to `/shift`.
 
 **Hero Detail Modal:** portrait, stat bars with icons, bio, missionsCompleted/Failed, current status. Opens from roster (always) or from incident modal hero click. Pauses game while open.
 
@@ -395,14 +485,14 @@ interruptState           — active interrupt (null when none)
 interruptQueue[]         — queued interrupts if one is already active
 missionOutcomes          — Record<incidentId, MissionOutcomeState>
 uiPaused                 — true while any modal is open
-pausedDuration           — accumulated ms paused (used by TimerRing for freeze-without-jump)
-pausedSince              — timestamp when current pause started (null if not paused)
-gameOver, finalScore
+gameOver, sessionComplete, finalScore
 ```
 
-**Pause tracking:** `setUiPaused(true)` records `pausedSince = Date.now()`. `setUiPaused(false)` adds elapsed to `pausedDuration`, clears `pausedSince`. `TimerRing` uses `getEffectiveNow() = Date.now() - pausedDuration - inProgressPause` so rings freeze during modal opens without jumping on resume.
+**Pause tracking:** `uiPaused` is a simple boolean — no client-side duration tracking. On pause: backend receives `POST /pause`. On resume: backend receives `POST /resume`, extends all pending incident `expiresAt` in DB, emits `incident:timer_extended` for each. `TimerRing` uses raw `expiresAt - Date.now()` directly, re-reading on each tick.
 
 **Interrupt queue:** `setInterrupt` checks if an unresolved interrupt is already active — if so, pushes to `interruptQueue` instead of replacing. `clearInterrupt` dequeues the next one automatically.
+
+**Session end:** `setSessionComplete(finalScore)` sets `sessionComplete: true`. `setGameOver(finalScore)` sets `gameOver: true`. Either triggers `ShiftEndScreen` overlay.
 
 ### Component Tree
 
@@ -412,7 +502,7 @@ app/
   shift/
     page.tsx                    # Pre-shift: GameLayout (shiftStarted=false) + StartScreen overlay
     [sessionId]/
-      page.tsx                  # Active game — full DndContext + modals
+      page.tsx                  # Active game — full DndContext + modals + ShiftEndScreen
   layout.tsx
   providers.tsx
 components/
@@ -425,10 +515,11 @@ components/
     HeroPortrait.tsx            # Portrait + availability state + cooldown ring
     CityHealthBar.tsx           # Segmented health bar in header
     StartScreen.tsx             # Overlay shown before shift starts
+    ShiftEndScreen.tsx          # Overlay on session:complete or game:over — grade + stats
   modals/
-    IncidentModal.tsx           # Incident briefing, hero slot drag targets, dispatch
-    InterruptModal.tsx          # Interrupt options, stat roll animation, auto-close
-    DebriefModal.tsx            # Mission outcome, eval score, hero field reports
+    IncidentModal.tsx           # Incident briefing, field intel hints, hero slot drag targets, dispatch
+    InterruptModal.tsx          # Trigger sentence, interrupt options, stat roll animation, auto-close
+    DebriefModal.tsx            # Dispatch analysis eval, hero field reports
     HeroDetailModal.tsx         # Hero profile with stat bars and icons
 hooks/
   useSSE.ts                     # EventSource → Zustand writes
@@ -468,21 +559,25 @@ Pre-choice SSE sends text + `isHeroSpecific` only. Post-choice SSE (`mission:int
 | `incident:new` | Pin drops onto map |
 | `incident:active` | Pin label updates from EN ROUTE → ON SCENE |
 | `incident:expired` | Pin removed from map |
+| `incident:timer_extended` | TimerRing resets to new `expiresAt` (no visual jump) |
 | `mission:interrupt` | Interrupt modal auto-opens, game pauses, pin shows ACT NOW pulse |
 | `mission:interrupt:resolved` | Stat icons slide in on all options; count-up roll on chosen option |
 | `mission:outcome` | Incident status → debriefing; pin shows DEBRIEF + ▼ CLICK |
 | `hero:state_update` | Portrait updates state, cooldown ring starts if resting |
 | `session:update` | Health bar and score counter animate |
-| `game:over` | (game over handling — modal not yet built) |
+| `game:over` | ShiftEndScreen overlay appears |
+| `session:complete` | ShiftEndScreen overlay appears |
 | `log` | New entry typewriters into SDN Comms panel |
 
 ---
 
-## Game Mode (MVP)
+## Game Mode
 
-- Session runs until city health hits 0
+- Sessions are **finite** — `SessionArcAgent` sets `incidentLimit` (varies by arc design)
+- Session ends naturally when all incidents are resolved after the limit is reached (`session:complete`)
+- Session ends early if city health reaches 0 (`game:over`)
 - No auth — session ID in URL (`/shift/:id`), created fresh on "Start Shift"
-- Spawn pressure: new incident every ~45–60s, max 4 on map simultaneously
+- Spawn pressure: new incident every ~45–60s (randomized per tick), max 4 on map simultaneously
 - Danger level never shown as a number — only as pin color (green/orange/red)
 
 **Incident lifecycle:** `pending` → `en_route` → `active` → `debriefing` → `completed` | `expired`
@@ -494,7 +589,6 @@ Pre-choice SSE sends text + `isHeroSpecific` only. Post-choice SSE (`mission:int
 ## Future
 
 - Auth + leaderboards
-- Shift mode (handle N incidents, get debriefed at end)
 - Hero progression + skills
 - Create your own hero
 - Campaign / story mode

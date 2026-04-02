@@ -8,12 +8,33 @@ export const statSchema = z.enum([
   "tempo",
 ]);
 
+// SessionArcAgent — generates narrative threads for a session
+export const ArcSeedSchema = z.object({
+  id: z.string().describe("Short identifier: arc_a, arc_b"),
+  name: z.string().describe("Name of this thread — a faction, person, situation, or phenomenon"),
+  concept: z.string().describe("Rich description for the incident generator to use when advancing this thread. Include tone, escalation pattern, what changes across beats, any named NPCs or locations."),
+  tone: z.string().describe("The emotional register of this arc — e.g. 'serious', 'absurd', 'tense', 'darkly comic', 'bureaucratic nightmare'. Freeform."),
+  targetBeats: z.number().min(2).max(4).describe("How many incidents across the session should reference this thread"),
+});
+export type ArcSeed = z.infer<typeof ArcSeedSchema>;
+
+export const SessionArcOutputSchema = z.object({
+  arcs: z.array(ArcSeedSchema).min(1).max(2).describe("1–2 narrative threads for this session. Can be wildly different types."),
+  incidentLimit: z.number().min(12).max(20).describe("Total incidents to spawn this session. Scaled to arc complexity."),
+  sessionMood: z.string().describe("One sentence flavor note on the overall session feel — used as context only, not shown to player."),
+});
+export type SessionArcOutput = z.infer<typeof SessionArcOutputSchema>;
+
 // IncidentGeneratorAgent — pure flavor, no game mechanics
 export const IncidentGeneratorOutputSchema = z.object({
   title: z.string().describe("Short incident title shown on the map pin"),
   description: z
     .string()
     .describe("2–4 sentence flavor description shown to the player"),
+  arcId: z
+    .string()
+    .nullable()
+    .describe("Which arc this incident advances — must match one of the arc IDs from the session seeds (e.g. 'arc_a', 'arc_b'). Null if this is a standalone incident."),
 });
 export type IncidentGeneratorOutput = z.infer<
   typeof IncidentGeneratorOutputSchema

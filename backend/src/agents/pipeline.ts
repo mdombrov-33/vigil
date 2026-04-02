@@ -1,6 +1,6 @@
-import { db, heroes, incidents, missions, missionHeroes } from "@/db/index.js";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
-import { runIncidentGeneratorAgent } from "./incident-generator.js";
+import { db, heroes, incidents, missions, missionHeroes, sessions } from "@/db/index.js";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { runIncidentGeneratorAgent, type SessionContext, type ArcBeat } from "./incident-generator.js";
 import { runTriageAgent } from "./triage.js";
 import { runNarrativePickAgent } from "./narrative-pick.js";
 import { runDispatcherAgent } from "./dispatcher.js";
@@ -27,16 +27,95 @@ export async function runIncidentCreationPipeline(
   console.log("[incident-pipeline] starting");
   log(sessionId, "Analyzing incoming incident...");
 
-  // Fetch heroes + generate incident flavor in parallel
-  const [{ title, description }, availableHeroes] = await Promise.all([
-    runIncidentGeneratorAgent(),
-    db
-      .select()
-      .from(heroes)
-      .where(
-        and(eq(heroes.availability, "available"), ne(heroes.health, "down")),
-      ),
+  // Fetch session context + heroes in parallel
+  const [sessionRow, availableHeroes] = await Promise.all([
+    db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1),
+    db.select().from(heroes).where(and(eq(heroes.availability, "available"), ne(heroes.health, "down"))),
   ]);
+
+  const session = sessionRow[0];
+  const arcSeeds = (session?.arcSeeds as SessionContext["arcSeeds"]) ?? [];
+  const sessionMood = session?.sessionMood ?? null;
+  const incidentLimit = session?.incidentLimit ?? 15;
+  const incidentNumber = (session?.incidentCount ?? 0) + 1;
+
+  // Fetch full session incident history with mission outcomes
+  const historyRows = await db
+    .select({
+      id: incidents.id,
+      title: incidents.title,
+      status: incidents.status,
+      arcId: incidents.arcId,
+      missionOutcome: missions.outcome,
+      evalVerdict: missions.evalVerdict,
+      evalPostOpNote: missions.evalPostOpNote,
+    })
+    .from(incidents)
+    .leftJoin(missions, eq(missions.incidentId, incidents.id))
+    .where(eq(incidents.sessionId, sessionId))
+    .orderBy(desc(incidents.createdAt));
+
+  // Fetch hero reports for arc incidents only
+  const arcIncidentIds = historyRows
+    .filter((i) => i.arcId != null)
+    .map((i) => i.id);
+
+  const heroReportRows = arcIncidentIds.length > 0
+    ? await db
+      .select({
+        incidentId: missions.incidentId,
+        alias: heroes.alias,
+        report: missionHeroes.report,
+      })
+      .from(missionHeroes)
+      .innerJoin(missions, eq(missions.id, missionHeroes.missionId))
+      .innerJoin(heroes, eq(heroes.id, missionHeroes.heroId))
+      .where(and(
+        inArray(missions.incidentId, arcIncidentIds),
+        ne(missionHeroes.report, ""),
+      ))
+    : [];
+
+  // Group hero reports by incidentId
+  const reportsByIncident: Record<string, { alias: string; report: string }[]> = {};
+  for (const row of heroReportRows) {
+    if (!row.incidentId || !row.report) continue;
+    if (!reportsByIncident[row.incidentId]) reportsByIncident[row.incidentId] = [];
+    reportsByIncident[row.incidentId].push({ alias: row.alias, report: row.report });
+  }
+
+  // Build recentIncidents (all, lightweight) and arcBeats (arc incidents, rich)
+  const recentIncidents: SessionContext["recentIncidents"] = historyRows.map((i) => ({
+    title: i.title,
+    outcome: i.status === "expired"
+      ? "expired"
+      : i.missionOutcome ?? null,
+  }));
+
+  const arcBeats: Record<string, ArcBeat[]> = {};
+  for (const i of historyRows) {
+    if (!i.arcId) continue;
+    if (!arcBeats[i.arcId]) arcBeats[i.arcId] = [];
+    arcBeats[i.arcId].push({
+      title: i.title,
+      outcome: i.status === "expired" ? "expired" : i.missionOutcome ?? null,
+      evalVerdict: i.evalVerdict ?? null,
+      evalPostOpNote: i.evalPostOpNote ?? null,
+      heroReports: reportsByIncident[i.id] ?? [],
+    });
+  }
+
+  const sessionCtx: SessionContext = {
+    arcSeeds,
+    sessionMood,
+    recentIncidents,
+    arcBeats,
+    incidentNumber,
+    incidentLimit,
+  };
+
+  // Generate incident flavor with session context
+  const { title, description, arcId } = await runIncidentGeneratorAgent(sessionCtx);
   console.log(`[incident-pipeline] generated: "${title}"`);
   log(sessionId, `Incident detected: ${title}`);
 
@@ -85,6 +164,7 @@ export async function runIncidentCreationPipeline(
       interruptTrigger: triage.interruptTrigger ?? null,
       interruptOptions: triage.interruptOptions ?? null,
       topHeroId: narrativePick.heroId,
+      arcId: arcId ?? null,
       expiresAt,
     })
     .returning();
@@ -235,11 +315,20 @@ export async function runMissionPipeline(
   console.log(
     `[mission-pipeline] generating reports for: ${dispatchedHeroes.map((h) => h.alias).join(", ")}`,
   );
+  // Resolve arc name for this incident if it belongs to an arc
+  let arcName: string | undefined;
+  if (incident.arcId) {
+    const sessionArcRow = await db.select({ arcSeeds: sessions.arcSeeds }).from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+    const arcSeeds = (sessionArcRow[0]?.arcSeeds as { id: string; name: string }[] | null) ?? [];
+    arcName = arcSeeds.find((a) => a.id === incident.arcId)?.name;
+  }
+
   const rawReports = await Promise.all(
     dispatchedHeroes.map((hero) => {
       const missionContext: MissionContext = {
         teammates: dispatchedHeroes.filter((h) => h.id !== hero.id).map((h) => h.alias),
         isLead: hero.id === incident.topHeroId,
+        arcName,
         interrupt: interruptContext,
       };
       return runHeroReportAgent(hero, outcome, incident, missionContext);

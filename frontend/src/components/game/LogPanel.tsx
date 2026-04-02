@@ -35,7 +35,10 @@ function LogContent() {
   }, [entries.length]);
 
   return (
-    <div className="flex flex-col h-full" style={{ backgroundColor: "#050508" }}>
+    <div
+      className="flex flex-col h-full"
+      style={{ backgroundColor: "#050508" }}
+    >
       <div
         className="px-3 py-2 text-xs font-mono tracking-widest uppercase border-b shrink-0"
         style={{ color: "#fbbf24", borderColor: "#1e1e2e" }}
@@ -44,7 +47,10 @@ function LogContent() {
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 scrollbar-hide">
         {entries.length === 0 && (
-          <div className="font-mono text-xs opacity-60" style={{ color: "#fbbf24" }}>
+          <div
+            className="font-mono text-xs opacity-60"
+            style={{ color: "#fbbf24" }}
+          >
             Awaiting dispatch...
           </div>
         )}
@@ -65,7 +71,6 @@ export function LogPanel() {
         theme="amber"
         enableScanlines
         scanlineOpacity={0.08}
-        enableSweep
         sweepDuration={6}
         enableGlow={false}
         enableEdgeGlow={false}

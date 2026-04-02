@@ -3,7 +3,25 @@ import { MODEL_FAST } from "./models.js";
 import {
   IncidentGeneratorOutputSchema,
   type IncidentGeneratorOutput,
+  type ArcSeed,
 } from "./schemas.js";
+
+export interface ArcBeat {
+  title: string;
+  outcome: "success" | "failure" | "expired" | null;
+  evalVerdict: string | null;
+  evalPostOpNote: string | null;
+  heroReports: { alias: string; report: string }[];
+}
+
+export interface SessionContext {
+  arcSeeds: ArcSeed[];
+  sessionMood: string | null;
+  recentIncidents: { title: string; outcome: "success" | "failure" | "expired" | null }[];
+  arcBeats: Record<string, ArcBeat[]>; // arcId → beats so far for that arc
+  incidentNumber: number; // which incident this is in the session (1-indexed)
+  incidentLimit: number;
+}
 
 const incidentGeneratorAgent = new Agent({
   name: "IncidentGeneratorAgent",
@@ -52,10 +70,64 @@ CRITICAL: Never include the format name in the output. Do not prefix the descrip
   model: MODEL_FAST,
 });
 
-export async function runIncidentGeneratorAgent(): Promise<IncidentGeneratorOutput> {
-  const result = await run(
-    incidentGeneratorAgent,
-    "Generate a new Nova City incident.",
-  );
+export async function runIncidentGeneratorAgent(ctx?: SessionContext): Promise<IncidentGeneratorOutput> {
+  let prompt = "Generate a new Nova City incident.";
+
+  if (ctx && ctx.arcSeeds.length > 0) {
+    const position = ctx.incidentNumber <= 2
+      ? "early shift — warm up, standalone incidents are fine"
+      : ctx.incidentNumber >= ctx.incidentLimit - 3
+      ? "late shift — arc threads should be wrapping up or climaxing"
+      : "mid shift — mix of standalone and arc beats";
+
+    // Build arc blocks with previous beats if any
+    const arcBlock = ctx.arcSeeds.map((arc) => {
+      const beats = ctx.arcBeats[arc.id] ?? [];
+      let block = `[${arc.id.toUpperCase()} — ${arc.name} (${arc.tone}, target ${arc.targetBeats} beats)]\n${arc.concept}`;
+      if (beats.length > 0) {
+        block += `\n\nPREVIOUS BEATS FOR THIS ARC (${beats.length} so far):`;
+        beats.forEach((beat, i) => {
+          const outcomeStr = beat.outcome ?? "ongoing";
+          const verdictStr = beat.evalVerdict ? ` — dispatch: ${beat.evalVerdict}` : "";
+          block += `\n  Beat ${i + 1}: "${beat.title}" → ${outcomeStr}${verdictStr}`;
+          if (beat.evalPostOpNote) {
+            block += `\n    SDN note: ${beat.evalPostOpNote}`;
+          }
+          if (beat.heroReports.length > 0) {
+            block += `\n    Field reports:`;
+            beat.heroReports.forEach((r) => {
+              block += `\n      ${r.alias}: ${r.report}`;
+            });
+          }
+        });
+      }
+      return block;
+    }).join("\n\n");
+
+    const recentBlock = ctx.recentIncidents.length > 0
+      ? `Recent incidents this session (all, for variety — avoid repeating types):\n${ctx.recentIncidents.map((i, idx) =>
+          `  ${idx + 1}. "${i.title}"${i.outcome ? ` → ${i.outcome}` : " (ongoing)"}`
+        ).join("\n")}`
+      : "No incidents yet this session.";
+
+    prompt = `Generate a new Nova City incident. This is incident ${ctx.incidentNumber} of ${ctx.incidentLimit} this session (${position}).${ctx.sessionMood ? `\n\nSESSION MOOD: ${ctx.sessionMood}` : ""}
+
+SESSION NARRATIVE THREADS:
+${arcBlock}
+
+${recentBlock}
+
+PACING GUIDANCE:
+- You may advance one of the narrative threads above, or generate a fully standalone incident — your call based on natural pacing.
+- Don't force arc references every time. Standalone incidents provide rhythm and breathing room.
+- When advancing an arc, use the previous beats above — field reports tell you what happened on the ground, SDN notes tell you how well it was handled. Build on that continuity.
+- If a previous beat ended in failure or poor dispatch, the world should reflect it — the situation may have worsened.
+- Avoid repeating incident types that appeared recently.
+- If you advance an arc, set arcId to that arc's ID (e.g. "arc_a"). If standalone, set arcId to null.
+- ${ctx.incidentNumber <= 2 ? "This is the start of the shift — introduce the world before the threads surface." : ""}
+- ${ctx.incidentNumber >= ctx.incidentLimit - 3 ? "End of shift — threads should feel like they're reaching a point, not abruptly stopping." : ""}`;
+  }
+
+  const result = await run(incidentGeneratorAgent, prompt);
   return result.finalOutput as IncidentGeneratorOutput;
 }

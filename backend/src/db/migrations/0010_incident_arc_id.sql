@@ -1,0 +1,1 @@
+ALTER TABLE "incidents" ADD COLUMN "arc_id" varchar(10);
