@@ -1,54 +1,8 @@
 import { create } from "zustand";
-import type {
-  Incident,
-  HeroAvailability,
-  HeroHealth,
-  EvalVerdict,
-  InterruptOption,
-} from "@/types/api";
+import type { Incident, InterruptOption } from "@/types/api";
+import type { LogEntry, HeroState, InterruptState, MissionOutcomeState } from "@/types/game";
 
-export interface LogEntry {
-  id: string;
-  message: string;
-  type: "neutral" | "success" | "failure" | "eval" | "system";
-  timestamp: number;
-}
-
-export interface HeroState {
-  availability: HeroAvailability;
-  health: HeroHealth;
-  cooldownUntil: string | null;
-}
-
-export interface InterruptState {
-  incidentId: string;
-  missionId: string;
-  topHeroId: string | null;
-  heroIds: string[];
-  trigger: string | null;
-  options: InterruptOption[];
-  resolved?: {
-    chosenOptionId: string;
-    outcome: "success" | "failure";
-    combinedValue: number | null;
-    options: InterruptOption[];
-  };
-}
-
-export interface MissionOutcomeState {
-  incidentId: string;
-  missionId: string;
-  title: string;
-  outcome: "success" | "failure";
-  heroes: { heroId: string; alias: string }[];
-  evalScore: number | null;
-  evalVerdict: EvalVerdict | null;
-  evalPostOpNote: string | null;
-  rollRevealed: boolean;
-  requiredStats: Record<string, number>;
-  dispatchedStats: Record<string, number>;
-  roll: number | null;
-}
+export type { LogEntry, HeroState, InterruptState, MissionOutcomeState };
 
 interface GameStore {
   sessionId: string | null;
