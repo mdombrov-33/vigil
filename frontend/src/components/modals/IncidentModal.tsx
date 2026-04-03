@@ -119,8 +119,6 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
               <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 shrink-0">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <div className="w-2 h-2 rounded-full animate-pulse"
-                      style={{ backgroundColor: danger?.color, boxShadow: `0 0 6px ${danger?.color}` }} />
                     <span className="font-mono text-[9px] tracking-widest" style={{ color: danger?.color }}>
                       {danger?.label}
                     </span>

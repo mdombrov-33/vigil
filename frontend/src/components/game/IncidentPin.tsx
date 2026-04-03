@@ -13,23 +13,29 @@ interface Props {
   rollPending?: boolean;
 }
 
-const dangerColor = {
-  1: "#22c55e",
-  2: "#f97316",
-  3: "#ef4444",
+// Danger level → visual config
+const DANGER_CONFIG = {
+  1: { diamond: 7,  ringR: 17, color: "#22c55e", extraRing: false },
+  2: { diamond: 10, ringR: 19, color: "#f97316", extraRing: false },
+  3: { diamond: 13, ringR: 21, color: "#ef4444", extraRing: true  },
 } as const;
 
-const statusLabel: Partial<Record<Incident["status"], string>> = {
-  en_route:   "EN ROUTE",
-  active:     "ON SCENE",
-  debriefing: "DEBRIEF",
-};
+const CIRCUMFERENCE = (r: number) => 2 * Math.PI * r;
 
-const RING_RADIUS = 20;
-const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-function TimerRing({ createdAt, expiresAt, color }: { createdAt: string; expiresAt: string; color: string }) {
+function TimerRing({
+  createdAt,
+  expiresAt,
+  color,
+  radius,
+}: {
+  createdAt: string;
+  expiresAt: string;
+  color: string;
+  radius: number;
+}) {
   const pausedAt = useGameStore((s) => s.pausedAt);
+  const circ = CIRCUMFERENCE(radius);
+  const size = (radius + 5) * 2;
 
   const compute = (now: number) => {
     const total = new Date(expiresAt).getTime() - new Date(createdAt).getTime();
@@ -39,15 +45,12 @@ function TimerRing({ createdAt, expiresAt, color }: { createdAt: string; expires
 
   const [progress, setProgress] = useState(() => compute(Date.now()));
 
-  // Freeze on pause — only fires when pausedAt changes, not when expiresAt changes.
-  // This prevents incident:timer_extended SSE (arriving while paused) from corrupting the display.
   useEffect(() => {
     if (pausedAt === null) return;
     setProgress(compute(pausedAt));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pausedAt]);
 
-  // Tick when not paused — also re-runs after resume so expiresAt is fresh.
   useEffect(() => {
     if (pausedAt !== null) return;
     setProgress(compute(Date.now()));
@@ -58,35 +61,39 @@ function TimerRing({ createdAt, expiresAt, color }: { createdAt: string; expires
 
   const isUrgent = progress < 0.25;
   const strokeColor = isUrgent ? "#ef4444" : color;
-  const offset = CIRCUMFERENCE * (1 - progress);
+  const offset = circ * (1 - progress);
+  const opacity = isUrgent ? 1 : progress > 0.6 ? 0.35 : 0.6;
 
   return (
     <svg
-      width={50}
-      height={50}
+      width={size}
+      height={size}
       className="absolute pointer-events-none"
-      style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%) rotate(-90deg)" }}
+      style={{
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%) rotate(-90deg)",
+        overflow: "visible",
+      }}
     >
-      {/* Dim track */}
       <circle
-        cx={25} cy={25} r={RING_RADIUS}
+        cx={size / 2} cy={size / 2} r={radius}
         fill="none"
-        stroke={`${strokeColor}25`}
-        strokeWidth={2.5}
+        stroke={`${strokeColor}18`}
+        strokeWidth={1.5}
       />
-      {/* Countdown arc */}
       <circle
-        cx={25} cy={25} r={RING_RADIUS}
+        cx={size / 2} cy={size / 2} r={radius}
         fill="none"
         stroke={strokeColor}
-        strokeWidth={isUrgent ? 3 : 2.5}
-        strokeDasharray={CIRCUMFERENCE}
+        strokeWidth={isUrgent ? 2 : 1.5}
+        strokeDasharray={circ}
         strokeDashoffset={offset}
         strokeLinecap="round"
         style={{
           transition: "stroke-dashoffset 0.5s linear",
-          opacity: isUrgent ? 1 : progress > 0.6 ? 0.45 : 0.75,
-          filter: isUrgent ? `drop-shadow(0 0 4px ${strokeColor})` : "none",
+          opacity,
+          filter: isUrgent ? `drop-shadow(0 0 3px ${strokeColor})` : "none",
         }}
       />
     </svg>
@@ -94,14 +101,187 @@ function TimerRing({ createdAt, expiresAt, color }: { createdAt: string; expires
 }
 
 export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending }: Props) {
-  const color = dangerColor[incident.dangerLevel];
-  const isPending = incident.status === "pending";
+  const cfg = DANGER_CONFIG[incident.dangerLevel];
+  const color = cfg.color;
+
+  const isPending    = incident.status === "pending";
+  const isDispatched = incident.status === "en_route" || incident.status === "active";
   const isDebriefing = incident.status === "debriefing";
-  const isDispatched = ["en_route", "active"].includes(incident.status);
-  const isClickable = isPending || isDebriefing || hasInterrupt;
+  const isClickable  = isPending || isDebriefing || hasInterrupt;
 
-  const label = rollPending ? "ROLL" : (statusLabel[incident.status] ?? incident.title);
+  // Interrupt overrides everything — it's an alarm state
+  if (hasInterrupt) {
+    return (
+      <button
+        onClick={onClick}
+        className="absolute -translate-x-1/2 -translate-y-1/2"
+        style={{ left: `${x}%`, top: `${y}%`, width: 56, height: 56, cursor: "pointer" }}
+      >
+        {/* Aggressive outer pulse */}
+        <span
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            inset: 0,
+            border: "1px solid #ef4444",
+            animation: "ping 0.6s ease-out infinite",
+            opacity: 0.7,
+          }}
+        />
+        <span
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            inset: 6,
+            border: "1px solid #ef444480",
+            animation: "ping 0.6s ease-out 0.2s infinite",
+          }}
+        />
+        {/* Core */}
+        <span
+          className="absolute"
+          style={{
+            top: "50%", left: "50%",
+            width: 12, height: 12,
+            transform: "translate(-50%, -50%) rotate(45deg)",
+            backgroundColor: "#ef4444",
+            boxShadow: "0 0 12px #ef4444, 0 0 24px #ef444460",
+          }}
+        />
+        {/* Label */}
+        <span
+          className="absolute font-mono whitespace-nowrap pointer-events-none"
+          style={{
+            top: "calc(100% + 5px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            fontSize: 9,
+            letterSpacing: "0.12em",
+            color: "#ef4444",
+            backgroundColor: "#0a000088",
+            padding: "2px 5px",
+            border: "1px solid #ef444460",
+          }}
+        >
+          ACT NOW
+        </span>
+      </button>
+    );
+  }
 
+  // Dispatched — visible but not demanding attention
+  if (isDispatched) {
+    const isActive = incident.status === "active";
+    return (
+      <div
+        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+        style={{ left: `${x}%`, top: `${y}%`, width: 44, height: 44 }}
+      >
+        {/* Orbit ring for en_route — slow spin shows movement */}
+        {!isActive && (
+          <svg
+            width={44} height={44}
+            className="absolute pin-orbit"
+            style={{ top: "50%", left: "50%", overflow: "visible" }}
+          >
+            <circle
+              cx={22} cy={22} r={14}
+              fill="none"
+              stroke={`${color}55`}
+              strokeWidth={1}
+              strokeDasharray="4 6"
+              strokeLinecap="round"
+            />
+          </svg>
+        )}
+
+        {/* Core diamond */}
+        <span
+          className="absolute"
+          style={{
+            top: "50%", left: "50%",
+            width: isActive ? 9 : 7, height: isActive ? 9 : 7,
+            transform: "translate(-50%, -50%) rotate(45deg)",
+            backgroundColor: isActive ? `${color}70` : "transparent",
+            border: `1.5px solid ${color}${isActive ? "80" : "60"}`,
+            boxShadow: isActive ? `0 0 6px ${color}40` : "none",
+          }}
+        />
+
+        {/* Status label */}
+        <span
+          className="absolute font-mono whitespace-nowrap"
+          style={{
+            top: "calc(100% + 6px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            fontSize: 9,
+            letterSpacing: "0.1em",
+            color: `${color}70`,
+            backgroundColor: "#06060eaa",
+            padding: "1px 5px",
+            border: `1px solid ${color}25`,
+          }}
+        >
+          {isActive ? "ON SCENE" : "ROUTING"}
+        </span>
+      </div>
+    );
+  }
+
+  // Debriefing — clickable, amber weight
+  if (isDebriefing) {
+    const amber = "#fbbf24";
+    return (
+      <button
+        onClick={onClick}
+        className="absolute -translate-x-1/2 -translate-y-1/2"
+        style={{ left: `${x}%`, top: `${y}%`, width: 44, height: 44, cursor: "pointer" }}
+      >
+        {/* Outer ring */}
+        <span
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            inset: 8,
+            border: `1px solid ${amber}60`,
+          }}
+        />
+
+        {/* Core */}
+        <span
+          className="absolute"
+          style={{
+            top: "50%", left: "50%",
+            width: 10, height: 10,
+            transform: "translate(-50%, -50%) rotate(45deg)",
+            backgroundColor: amber,
+            border: `1px solid ${amber}`,
+            boxShadow: rollPending
+              ? `0 0 12px ${amber}90, 0 0 24px ${amber}40`
+              : `0 0 8px ${amber}60, 0 0 16px ${amber}25`,
+          }}
+        />
+
+        {/* Label */}
+        <span
+          className="absolute font-mono whitespace-nowrap pointer-events-none"
+          style={{
+            top: "calc(100% + 6px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            fontSize: 9,
+            letterSpacing: "0.12em",
+            color: amber,
+            backgroundColor: "#06060ecc",
+            padding: "2px 6px",
+            border: `1px solid ${amber}50`,
+          }}
+        >
+          {rollPending ? "ROLL" : "DEBRIEF"}
+        </span>
+      </button>
+    );
+  }
+
+  // Pending — primary state, full visual weight by danger level
   return (
     <button
       onClick={isClickable ? onClick : undefined}
@@ -109,88 +289,66 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
       style={{
         left: `${x}%`,
         top: `${y}%`,
-        cursor: isClickable ? "pointer" : "default",
         width: 50,
         height: 50,
+        cursor: isClickable ? "pointer" : "default",
       }}
     >
-      {/* Timer ring — only for pending incidents */}
-      {isPending && incident.createdAt && (
-        <TimerRing createdAt={incident.createdAt} expiresAt={incident.expiresAt} color={color} />
-      )}
-
-      {/* Outer scan ring — pulses for interrupt */}
-      {hasInterrupt && (
-        <span
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            inset: 4,
-            border: `1px solid ${color}`,
-            animation: "ping 0.5s ease-in-out infinite",
-          }}
+      {/* Timer ring */}
+      {incident.createdAt && (
+        <TimerRing
+          createdAt={incident.createdAt}
+          expiresAt={incident.expiresAt}
+          color={color}
+          radius={cfg.ringR}
         />
       )}
 
-      {/* Mid ring */}
-      <span
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          inset: 17,
-          border: `1px solid ${color}${isDispatched ? "40" : "70"}`,
-        }}
-      />
+      {/* Extra outer pulse for danger 3 */}
+      {cfg.extraRing && (
+        <span
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            inset: 2,
+            border: `1px solid ${color}40`,
+            animation: "ping 2s ease-out infinite",
+          }}
+        />
+      )}
 
       {/* Core diamond */}
       <span
         className="absolute"
         style={{
           top: "50%", left: "50%",
-          width: 10, height: 10,
+          width: cfg.diamond, height: cfg.diamond,
           transform: "translate(-50%, -50%) rotate(45deg)",
-          backgroundColor: isDispatched ? "transparent" : color,
-          border: `1.5px solid ${color}`,
-          boxShadow: isDispatched ? "none" : `0 0 8px ${color}, 0 0 16px ${color}60`,
-          opacity: isDispatched ? 0.5 : 1,
+          backgroundColor: color,
+          boxShadow: `0 0 ${cfg.extraRing ? 14 : 8}px ${color}, 0 0 ${cfg.extraRing ? 28 : 16}px ${color}50`,
         }}
       />
 
-      {/* Crosshair lines */}
-      <span className="absolute pointer-events-none" style={{ top: "50%", left: 0, right: 0, height: 1, backgroundColor: `${color}30`, transform: "translateY(-50%)" }} />
-      <span className="absolute pointer-events-none" style={{ left: "50%", top: 0, bottom: 0, width: 1, backgroundColor: `${color}30`, transform: "translateX(-50%)" }} />
-
-      {/* Label above */}
+      {/* Title label below */}
       <span
         className="absolute font-mono pointer-events-none whitespace-nowrap"
         style={{
-          bottom: "calc(100% + 6px)",
+          top: "calc(100% + 7px)",
           left: "50%",
           transform: "translateX(-50%)",
-          fontSize: 11,
-          letterSpacing: "0.1em",
+          fontSize: 9,
+          letterSpacing: "0.08em",
           color,
-          opacity: isDispatched ? 0.6 : 1,
-          backgroundColor: "rgba(0,0,0,0.75)",
+          opacity: 0.85,
+          backgroundColor: "#06060ecc",
           padding: "2px 6px",
-          border: `1px solid ${color}40`,
-          boxShadow: `0 0 10px ${color}30`,
+          border: `1px solid ${color}35`,
+          maxWidth: 160,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
-        {label.toUpperCase()}
+        {incident.title.toUpperCase()}
       </span>
-
-      {/* Action hint below */}
-      {isDebriefing && (
-        <span className="absolute font-mono pointer-events-none whitespace-nowrap"
-          style={{ top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", fontSize: 10, letterSpacing: "0.1em", color: rollPending ? color : "#fbbf24", backgroundColor: "rgba(0,0,0,0.75)", padding: "2px 6px", border: `1px solid ${rollPending ? color : "#fbbf24"}40` }}>
-          ▼ CLICK
-        </span>
-      )}
-      {hasInterrupt && (
-        <span className="absolute font-mono pointer-events-none whitespace-nowrap"
-          style={{ top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", fontSize: 10, letterSpacing: "0.1em", color, backgroundColor: "rgba(0,0,0,0.75)", padding: "2px 6px", border: `1px solid ${color}60` }}>
-          ▼ ACT NOW
-        </span>
-      )}
     </button>
   );
 }

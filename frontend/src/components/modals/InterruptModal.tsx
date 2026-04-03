@@ -8,7 +8,6 @@ import { useHeroes } from "@/hooks/useHeroes";
 import { STAT_META_BY_KEY } from "@/lib/statMeta";
 import { api } from "@/lib/api";
 import type { InterruptOption } from "@/types/api";
-import { BorderBeam } from "@/components/ui/border-beam";
 
 // Auto-close delay after resolution animation plays
 const RESOLVE_AUTOCLOSE_MS = 7000;
@@ -281,10 +280,10 @@ export function InterruptModal({ onClose }: Props) {
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="relative w-full max-w-md flex flex-col overflow-hidden"
+            className={`relative w-full max-w-md flex flex-col overflow-hidden${!isResolved ? " danger-glow" : ""}`}
             style={{
               backgroundColor: "var(--panel)",
-              border: "1px solid #ef444440",
+              border: `1px solid ${isResolved ? "#ef444425" : "#ef444460"}`,
               maxHeight: "85vh",
             }}
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -292,25 +291,23 @@ export function InterruptModal({ onClose }: Props) {
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
             transition={{ duration: 0.2 }}
           >
+            {/* Corner brackets — tactical urgency indicator */}
             {!isResolved && (
-              <BorderBeam
-                size={80}
-                duration={3}
-                colorFrom="#ef4444"
-                colorTo="#f97316"
-              />
+              <>
+                <span className="bracket-pulse absolute pointer-events-none" style={{ top: 6, left: 6, width: 12, height: 12, borderTop: "1.5px solid #ef4444", borderLeft: "1.5px solid #ef4444" }} />
+                <span className="bracket-pulse absolute pointer-events-none" style={{ top: 6, right: 6, width: 12, height: 12, borderTop: "1.5px solid #ef4444", borderRight: "1.5px solid #ef4444" }} />
+                <span className="bracket-pulse absolute pointer-events-none" style={{ bottom: 6, left: 6, width: 12, height: 12, borderBottom: "1.5px solid #ef4444", borderLeft: "1.5px solid #ef4444" }} />
+                <span className="bracket-pulse absolute pointer-events-none" style={{ bottom: 6, right: 6, width: 12, height: 12, borderBottom: "1.5px solid #ef4444", borderRight: "1.5px solid #ef4444" }} />
+              </>
             )}
-            <div className="h-0.5 shrink-0" style={{ backgroundColor: "var(--danger)" }} />
+
+            <div className="h-0.5 shrink-0" style={{ backgroundColor: isResolved ? "#ef444440" : "var(--danger)" }} />
 
             {/* Header */}
             <div className="flex items-start justify-between gap-3 p-5 shrink-0">
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
-                  {!isResolved && (
-                    <div className="w-2 h-2 rounded-full animate-ping"
-                      style={{ backgroundColor: "var(--danger)", animationDuration: "0.7s", boxShadow: "0 0 6px #ef4444" }} />
-                  )}
-                  <span className="font-mono text-[9px] tracking-widest" style={{ color: isResolved ? "#ffffff40" : "var(--danger)" }}>
+                  <span className="font-mono text-[9px] tracking-widest" style={{ color: isResolved ? "var(--text-muted)" : "var(--danger)" }}>
                     {isResolved ? "DECISION RECORDED" : "INTERRUPT — DECISION REQUIRED"}
                   </span>
                 </div>
