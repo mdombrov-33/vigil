@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { useDroppable } from "@dnd-kit/core";
 import { useMutation } from "@tanstack/react-query";
+import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { useHeroes } from "@/hooks/useHeroes";
 import { api } from "@/lib/api";
 import type { Incident } from "@/types/api";
@@ -182,19 +183,25 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
                     {error instanceof Error ? error.message : "Dispatch failed"}
                   </div>
                 )}
-                <motion.button
-                  onClick={handleDispatch}
-                  disabled={!canDispatch}
-                  className="w-full max-w-xs py-2.5 font-mono text-xs tracking-widest uppercase"
-                  style={{
-                    backgroundColor: canDispatch ? danger?.color : "var(--border)",
-                    color: canDispatch ? "#000" : "var(--text-muted)",
-                    cursor: canDispatch ? "pointer" : "not-allowed",
-                  }}
-                  whileTap={canDispatch ? { scale: 0.98 } : {}}
-                >
-                  {isPending ? "Dispatching..." : "Dispatch"}
-                </motion.button>
+                {canDispatch ? (
+                  <ShimmerButton
+                    onClick={handleDispatch}
+                    className="w-full max-w-xs py-2.5 font-mono text-xs tracking-widest uppercase text-black"
+                    background={danger?.color ?? "#22c55e"}
+                    borderRadius="0px"
+                    shimmerColor="rgba(255,255,255,0.25)"
+                  >
+                    {isPending ? "Dispatching..." : "Dispatch"}
+                  </ShimmerButton>
+                ) : (
+                  <button
+                    disabled
+                    className="w-full max-w-xs py-2.5 font-mono text-xs tracking-widest uppercase"
+                    style={{ backgroundColor: "var(--border)", color: "var(--text-muted)", cursor: "not-allowed" }}
+                  >
+                    Dispatch
+                  </button>
+                )}
               </div>
             </motion.div>
           </motion.div>

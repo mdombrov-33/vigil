@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRef } from "react";
 import {
   RadarChart,
   Radar,
@@ -10,6 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { MissionOutcomeState } from "@/stores/gameStore";
+import { Confetti, type ConfettiRef } from "@/components/ui/confetti";
 
 const STAT_KEYS = ["threat", "grit", "presence", "edge", "tempo"] as const;
 const STAT_LABELS: Record<string, string> = {
@@ -28,6 +30,7 @@ interface Props {
 export function RollRevealModal({ outcome, onClose }: Props) {
   const [showRoll, setShowRoll] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const confettiRef = useRef<ConfettiRef>(null);
 
   useEffect(() => {
     if (!outcome) return;
@@ -37,9 +40,21 @@ export function RollRevealModal({ outcome, onClose }: Props) {
 
   useEffect(() => {
     if (!showRoll) return;
-    const t = setTimeout(() => setShowResult(true), 1400);
+    const t = setTimeout(() => {
+      setShowResult(true);
+      if (outcome?.outcome === "success") {
+        confettiRef.current?.fire({
+          particleCount: 80,
+          spread: 60,
+          origin: { y: 0.55 },
+          colors: ["#22c55e", "#fbbf24", "#3b82f6", "#a78bfa"],
+          gravity: 1.2,
+          scalar: 0.9,
+        });
+      }
+    }, 1400);
     return () => clearTimeout(t);
-  }, [showRoll]);
+  }, [showRoll, outcome?.outcome]);
 
   const isOpen = outcome !== null;
 
@@ -79,7 +94,12 @@ export function RollRevealModal({ outcome, onClose }: Props) {
           exit={{ opacity: 0 }}
           onClick={showResult ? onClose : undefined}
         >
-          <motion.div
+          <Confetti
+          ref={confettiRef}
+          manualstart
+          className="pointer-events-none absolute inset-0 z-50 w-full h-full"
+        />
+        <motion.div
             className="relative w-full max-w-sm flex flex-col overflow-hidden"
             style={{
               backgroundColor: "var(--panel)",
@@ -95,9 +115,9 @@ export function RollRevealModal({ outcome, onClose }: Props) {
             <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
               <span
                 className="font-mono text-[9px] tracking-widest"
-                style={{ color: "var(--text-muted)" }}
+                style={{ color: "var(--text-amber)" }}
               >
-                COMBAT ANALYSIS — {outcome.title.toUpperCase()}
+                {outcome.title.toUpperCase()}
               </span>
               {showResult && (
                 <button

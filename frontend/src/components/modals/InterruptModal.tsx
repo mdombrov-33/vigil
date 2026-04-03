@@ -8,6 +8,7 @@ import { useHeroes } from "@/hooks/useHeroes";
 import { STAT_META_BY_KEY } from "@/lib/statMeta";
 import { api } from "@/lib/api";
 import type { InterruptOption } from "@/types/api";
+import { BorderBeam } from "@/components/ui/border-beam";
 
 // Auto-close delay after resolution animation plays
 const RESOLVE_AUTOCLOSE_MS = 7000;
@@ -77,7 +78,7 @@ function StatRoll({
         >
           {displayed}
         </motion.span>
-        <span className="text-xs" style={{ color: "#ffffff25" }}>vs</span>
+        <span className="text-xs" style={{ color: "var(--text-muted)" }}>vs</span>
         <motion.span
           className="text-base"
           animate={{ color: settled ? `${outcomeColor}70` : "#ffffff35" }}
@@ -101,7 +102,7 @@ function StatBadge({ requiredStat, requiredValue, delay }: { requiredStat: strin
       transition={{ delay, duration: 0.3, ease: "easeOut" }}
     >
       {meta && <meta.Icon size={14} style={{ color: meta.color, opacity: 0.55 }} />}
-      <span className="font-mono text-[9px] tracking-widest" style={{ color: "#ffffff30" }}>
+      <span className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>
         {meta?.label.toUpperCase() ?? requiredStat.toUpperCase()} ≥ {requiredValue}
       </span>
     </motion.div>
@@ -216,7 +217,7 @@ function OptionRow({
       </div>
 
       {isChosen && !isResolved && (
-        <span className="font-mono text-[9px] tracking-widest shrink-0" style={{ color: "#ffffff40" }}>
+        <span className="font-mono text-[9px] tracking-widest shrink-0" style={{ color: "var(--text-muted)" }}>
           SENT
         </span>
       )}
@@ -283,7 +284,7 @@ export function InterruptModal({ onClose }: Props) {
             className="relative w-full max-w-md flex flex-col overflow-hidden"
             style={{
               backgroundColor: "var(--panel)",
-              border: "1px solid #ef444430",
+              border: "1px solid #ef444440",
               maxHeight: "85vh",
             }}
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -291,6 +292,14 @@ export function InterruptModal({ onClose }: Props) {
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
             transition={{ duration: 0.2 }}
           >
+            {!isResolved && (
+              <BorderBeam
+                size={80}
+                duration={3}
+                colorFrom="#ef4444"
+                colorTo="#f97316"
+              />
+            )}
             <div className="h-0.5 shrink-0" style={{ backgroundColor: "var(--danger)" }} />
 
             {/* Header */}

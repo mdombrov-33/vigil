@@ -1,6 +1,7 @@
 "use client";
 
 import { useGameStore } from "@/stores/gameStore";
+import { NumberTicker } from "@/components/ui/number-ticker";
 
 const SEGMENTS = 20;
 
@@ -42,17 +43,16 @@ export function CityHealthBar({ onEndShift, shiftStarted }: Props) {
                 );
               })}
             </div>
-            <span className="font-mono text-[10px] ml-1 shrink-0" style={{ color: isCritical ? "#ef4444" : "#22c55e" }}>
-              {cityHealth}
-            </span>
+            <NumberTicker
+              value={cityHealth}
+              className={`font-mono text-[10px] ml-1 shrink-0 tabular-nums ${isCritical ? "text-red-500" : "text-green-500"}`}
+            />
           </div>
 
           {/* Score */}
           <div className="flex items-center gap-1">
             <span className="text-[9px] font-mono text-white/40">SCORE</span>
-            <span className="font-mono text-sm" style={{ color: "#fbbf24" }}>
-              {score.toLocaleString()}
-            </span>
+            <NumberTicker value={score} className="font-mono text-sm tabular-nums text-amber-400" />
           </div>
         </>
       )}
@@ -62,7 +62,7 @@ export function CityHealthBar({ onEndShift, shiftStarted }: Props) {
         <button
           onClick={onEndShift}
           className="ml-auto font-mono text-[9px] tracking-widest uppercase px-2 py-1 hover:opacity-100 transition-opacity"
-          style={{ color: "#ffffff30", border: "1px solid #ffffff15" }}
+          style={{ color: "var(--text-muted)", border: "1px solid var(--border-subtle)" }}
         >
           End Shift
         </button>
