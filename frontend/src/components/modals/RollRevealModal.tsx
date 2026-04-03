@@ -31,11 +31,9 @@ export function RollRevealModal({ outcome, onClose }: Props) {
 
   useEffect(() => {
     if (!outcome) return;
-    setShowRoll(false);
-    setShowResult(false);
     const t1 = setTimeout(() => setShowRoll(true), 800);
     return () => clearTimeout(t1);
-  }, [outcome?.incidentId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!showRoll) return;
@@ -58,7 +56,7 @@ export function RollRevealModal({ outcome, onClose }: Props) {
 
   const reqKeys = STAT_KEYS.filter((k) => (requiredStats[k] ?? 0) > 0);
   const perStat = reqKeys.map((k) =>
-    Math.min((dispatchedStats[k] ?? 0) / requiredStats[k]!, 1.0)
+    Math.min((dispatchedStats[k] ?? 0) / requiredStats[k]!, 1.0),
   );
   const coverage =
     perStat.length > 0
@@ -83,7 +81,10 @@ export function RollRevealModal({ outcome, onClose }: Props) {
         >
           <motion.div
             className="relative w-full max-w-sm flex flex-col overflow-hidden"
-            style={{ backgroundColor: "var(--panel)", border: "1px solid var(--border)" }}
+            style={{
+              backgroundColor: "var(--panel)",
+              border: "1px solid var(--border)",
+            }}
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -110,7 +111,10 @@ export function RollRevealModal({ outcome, onClose }: Props) {
             </div>
 
             {/* Radar chart */}
-            <div className="px-2" style={{ height: 220, pointerEvents: "none" }}>
+            <div
+              className="px-2"
+              style={{ height: 220, pointerEvents: "none" }}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={radarData} outerRadius="72%">
                   <PolarGrid stroke="#ffffff0d" />
@@ -151,7 +155,10 @@ export function RollRevealModal({ outcome, onClose }: Props) {
             {/* Legend */}
             <div className="flex justify-center gap-5 pb-3">
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-px" style={{ backgroundColor: "#f97316" }} />
+                <div
+                  className="w-3 h-px"
+                  style={{ backgroundColor: "#f97316" }}
+                />
                 <span
                   className="font-mono text-[8px] tracking-widest"
                   style={{ color: "#f97316" }}
@@ -160,7 +167,10 @@ export function RollRevealModal({ outcome, onClose }: Props) {
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-px" style={{ backgroundColor: "#3b82f6" }} />
+                <div
+                  className="w-3 h-px"
+                  style={{ backgroundColor: "#3b82f6" }}
+                />
                 <span
                   className="font-mono text-[8px] tracking-widest"
                   style={{ color: "#3b82f6" }}
@@ -171,7 +181,10 @@ export function RollRevealModal({ outcome, onClose }: Props) {
             </div>
 
             {/* Roll bar */}
-            <div className="px-5 pb-4" style={{ borderTop: "1px solid var(--border)" }}>
+            <div
+              className="px-5 pb-4"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
               <div className="flex justify-between mt-3 mb-1.5">
                 <span
                   className="font-mono text-[8px] tracking-widest"
@@ -194,17 +207,28 @@ export function RollRevealModal({ outcome, onClose }: Props) {
                 {/* Success zone (left) */}
                 <div
                   className="absolute left-0 top-0 h-full"
-                  style={{ width: `${thresholdPct}%`, backgroundColor: "#22c55e18" }}
+                  style={{
+                    width: `${thresholdPct}%`,
+                    backgroundColor: "#22c55e18",
+                  }}
                 />
                 {/* Failure zone (right) */}
                 <div
                   className="absolute top-0 h-full"
-                  style={{ left: `${thresholdPct}%`, right: 0, backgroundColor: "#ef444418" }}
+                  style={{
+                    left: `${thresholdPct}%`,
+                    right: 0,
+                    backgroundColor: "#ef444418",
+                  }}
                 />
                 {/* Threshold divider */}
                 <div
                   className="absolute top-0 h-full"
-                  style={{ left: `${thresholdPct}%`, width: 1, backgroundColor: "#ffffff20" }}
+                  style={{
+                    left: `${thresholdPct}%`,
+                    width: 1,
+                    backgroundColor: "#ffffff20",
+                  }}
                 />
                 {/* Cursor */}
                 {showRoll && (
@@ -228,7 +252,7 @@ export function RollRevealModal({ outcome, onClose }: Props) {
               </div>
 
               {/* Outcome badge */}
-              <div className="mt-3 min-h-[24px] flex items-center justify-center">
+              <div className="mt-3 min-h-6 flex items-center justify-center">
                 {showResult && (
                   <motion.span
                     className="font-mono text-sm font-bold tracking-widest"
@@ -240,7 +264,7 @@ export function RollRevealModal({ outcome, onClose }: Props) {
                       textShadow: `0 0 16px ${outcomeColor}50`,
                     }}
                   >
-                    MISSION {isSuccess ? "SUCCESS" : "FAILURE"}
+                    {isSuccess ? "SUCCESS" : "FAILURE"}
                   </motion.span>
                 )}
               </div>

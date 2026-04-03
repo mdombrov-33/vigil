@@ -189,6 +189,7 @@ export default function ActiveShiftPage() {
         })() : null}
       </DragOverlay>
       <RollRevealModal
+        key={rollRevealIncidentId ?? ""}
         outcome={rollRevealIncidentId != null ? (missionOutcomes[rollRevealIncidentId] ?? null) : null}
         onClose={() => {
           if (rollRevealIncidentId) setRollRevealed(rollRevealIncidentId);
