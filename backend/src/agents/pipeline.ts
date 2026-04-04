@@ -8,12 +8,7 @@ import { runHeroReportAgent, type MissionContext } from "./hero-report.js";
 import { runReflectionAgent } from "./reflection.js";
 import { runEvalAgent } from "./eval.js";
 import { scoreHeroes, getMissionOutcome, getInterruptOutcome, combineStats, type InterruptOption } from "@/services/outcome.js";
-import {
-  getCooldownUntil,
-  rollHealthAfterFailure,
-} from "@/services/cooldown.js";
 import { send, log } from "@/sse/manager.js";
-import { dockCityHealth, addScore } from "@/services/city-health.js";
 import { waitForChoice } from "@/services/interrupt-gate.js";
 import type { RequiredStats } from "@/types";
 
@@ -234,8 +229,6 @@ export async function runMissionPipeline(
   // Mission in progress
   const halfMs = (incident.missionDuration * 1000) / 2;
   let outcome: "success" | "failure";
-  let missionRoll: number | undefined;
-  let missionDispatchedStats: ReturnType<typeof combineStats> | undefined;
   let interruptContext: MissionContext["interrupt"] | undefined;
 
   if (incident.hasInterrupt && incident.interruptOptions) {
@@ -293,8 +286,11 @@ export async function runMissionPipeline(
       incident.requiredStats as RequiredStats,
     );
     outcome = result.outcome;
-    missionRoll = result.roll;
-    missionDispatchedStats = result.dispatchedStats;
+    // Store roll + dispatchedStats in DB — revealed to player when they click the ROLL pin
+    await db
+      .update(missions)
+      .set({ roll: result.roll, dispatchedStats: result.dispatchedStats })
+      .where(eq(missions.id, mission.id));
   }
   console.log(`[mission-pipeline] outcome: ${outcome}`);
 
@@ -383,58 +379,23 @@ export async function runMissionPipeline(
     })
     .where(eq(missions.id, mission.id));
 
-  // Push completed mission to frontend FIRST — for non-interrupt missions the
-  // ROLL pin must appear before any score/health changes telegraph the outcome.
+  // Push completed mission to frontend.
+  // For non-interrupt missions: outcome is intentionally omitted — player reveals it
+  // by clicking the ROLL pin, which calls POST /incidents/:id/roll.
+  // For interrupt missions: outcome is included since it was already shown in the interrupt modal.
+  // Score/health and hero resting are applied only when the player acknowledges the debrief,
+  // so no consequences fire here that could spoil the roll reveal.
   send(sessionId, "mission:outcome", {
     incidentId,
     missionId: mission.id,
-    outcome,
     title: incident.title,
     heroes: dispatchedHeroes.map((h) => ({ heroId: h.id, alias: h.alias })),
     evalScore: Math.round(evalResult.score),
     evalVerdict: evalResult.verdict,
     evalPostOpNote: evalResult.postOpNote,
     hasInterrupt: incident.hasInterrupt,
-    ...(missionRoll !== undefined && {
-      roll: missionRoll,
-      requiredStats: incident.requiredStats as Record<string, number>,
-      dispatchedStats: missionDispatchedStats,
-    }),
+    ...(incident.hasInterrupt && { outcome }),
   });
-
-  // All SSE that could telegraph the outcome fires AFTER mission:outcome,
-  // so the ROLL pin appears before the player sees any consequences.
-  await Promise.all(
-    dispatchedHeroes.map(async (hero) => {
-      const newHealth =
-        outcome === "failure"
-          ? rollHealthAfterFailure(hero.health)
-          : hero.health;
-      const cooldownUntil = getCooldownUntil(newHealth);
-      console.log(
-        `[mission-pipeline] ${hero.alias} → ${newHealth}, cooldown: ${cooldownUntil?.toISOString() ?? "permanent"}`,
-      );
-      await db
-        .update(heroes)
-        .set({ availability: "resting", health: newHealth, cooldownUntil })
-        .where(eq(heroes.id, hero.id));
-
-      send(sessionId, "hero:state_update", {
-        heroId: hero.id,
-        alias: hero.alias,
-        availability: "resting",
-        health: newHealth,
-        cooldownUntil: cooldownUntil?.toISOString() ?? null,
-      });
-    }),
-  );
-
-  if (outcome === "failure") {
-    await dockCityHealth(sessionId, 10, `mission failed: ${incident.title}`);
-  }
-  if (outcome === "success") {
-    await addScore(sessionId, evalResult.verdict);
-  }
 
   console.log(`[mission-pipeline] done — mission ${mission.id} complete`);
 }

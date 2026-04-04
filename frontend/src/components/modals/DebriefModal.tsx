@@ -33,7 +33,7 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
     onClose();
   }
 
-  const isSuccess = outcome?.outcome === "success";
+  const isSuccess = outcome?.outcome != null && outcome.outcome === "success";
   const verdict = outcome?.evalVerdict ? verdictMeta[outcome.evalVerdict] : null;
   const activeHero = heroes[activeHeroIdx] ?? null;
 

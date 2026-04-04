@@ -23,7 +23,7 @@ export default function ActiveShiftPage() {
   const sessionId = params.sessionId as string;
   const queryClient = useQueryClient();
 
-  const { setSession, reset, updateIncidentStatus, removeIncident, interruptState, missionOutcomes, setUiPaused, setRollRevealed, setIncidentHeroes, sessionComplete, gameOver, score, cityHealth } = useGameStore();
+  const { setSession, reset, updateIncidentStatus, removeIncident, interruptState, missionOutcomes, setUiPaused, setIncidentHeroes, sessionComplete, gameOver, score, cityHealth } = useGameStore();
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [selectedHeroIds, setSelectedHeroIds] = useState<string[]>([]);
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
@@ -193,9 +193,8 @@ export default function ActiveShiftPage() {
       </DragOverlay>
       <RollRevealModal
         key={rollRevealIncidentId ?? ""}
-        outcome={rollRevealIncidentId != null ? (missionOutcomes[rollRevealIncidentId] ?? null) : null}
+        incidentId={rollRevealIncidentId}
         onClose={() => {
-          if (rollRevealIncidentId) setRollRevealed(rollRevealIncidentId);
           setRollRevealIncidentId(null);
           resumeGame();
         }}

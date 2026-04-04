@@ -8,6 +8,8 @@ import {
 } from "@/agents/pipeline";
 import { resolveChoice } from "@/services/interrupt-gate";
 import { send } from "@/sse/manager.js";
+import { dockCityHealth, addScore } from "@/services/city-health.js";
+import { getCooldownUntil, rollHealthAfterFailure } from "@/services/cooldown.js";
 import type { InterruptOption } from "@/services/outcome";
 
 // GET /api/v1/incidents?sessionId=xxx
@@ -321,8 +323,56 @@ export async function getDebrief(req: Request, res: Response) {
   });
 }
 
+// POST /api/v1/incidents/:id/roll
+// Player clicks the ROLL pin — returns pre-computed outcome data stored in DB.
+// No side effects; all consequences (score, health, hero resting) are applied at acknowledge time.
+export async function rollMission(req: Request, res: Response) {
+  const incidentId = req.params.id as string;
+
+  const [incident] = await db
+    .select()
+    .from(incidents)
+    .where(eq(incidents.id, incidentId))
+    .limit(1);
+
+  if (!incident) {
+    sendJson(res, 404, { error: "Incident not found" });
+    return;
+  }
+
+  if (incident.status !== "debriefing") {
+    sendJson(res, 409, { error: "Incident is not in debriefing state" });
+    return;
+  }
+
+  if (incident.hasInterrupt) {
+    sendJson(res, 400, { error: "Interrupt missions do not use the roll endpoint" });
+    return;
+  }
+
+  const [mission] = await db
+    .select()
+    .from(missions)
+    .where(and(eq(missions.incidentId, incidentId), isNotNull(missions.completedAt)))
+    .orderBy(desc(missions.completedAt))
+    .limit(1);
+
+  if (!mission) {
+    sendJson(res, 404, { error: "No completed mission found" });
+    return;
+  }
+
+  sendJson(res, 200, {
+    outcome: mission.outcome,
+    roll: mission.roll,
+    requiredStats: incident.requiredStats as Record<string, number>,
+    dispatchedStats: mission.dispatchedStats as Record<string, number> | null,
+  });
+}
+
 // POST /api/v1/incidents/:id/acknowledge
-// Player has read the debrief — move incident to completed, clear it from the map.
+// Player has read the debrief — apply all mission consequences and complete the incident.
+// This is the commit point: score/health + hero resting happen here, not in the pipeline.
 export async function acknowledgeDebrief(req: Request, res: Response) {
   const incidentId = req.params.id as string;
 
@@ -342,10 +392,65 @@ export async function acknowledgeDebrief(req: Request, res: Response) {
     return;
   }
 
-  await db
-    .update(incidents)
-    .set({ status: "completed" })
-    .where(eq(incidents.id, incidentId));
+  // Find the completed mission
+  const [mission] = await db
+    .select()
+    .from(missions)
+    .where(and(eq(missions.incidentId, incidentId), isNotNull(missions.completedAt)))
+    .orderBy(desc(missions.completedAt))
+    .limit(1);
+
+  if (!mission || !mission.outcome) {
+    // Fallback: just mark completed if no mission data
+    await db.update(incidents).set({ status: "completed" }).where(eq(incidents.id, incidentId));
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  const sessionId = incident.sessionId;
+  const outcome = mission.outcome;
+
+  // Fetch dispatched heroes via missionHeroes junction
+  const heroRows = await db
+    .select({ hero: heroes })
+    .from(missionHeroes)
+    .innerJoin(heroes, eq(missionHeroes.heroId, heroes.id))
+    .where(eq(missionHeroes.missionId, mission.id));
+
+  const dispatchedHeroes = heroRows.map((r) => r.hero);
+
+  // Mark incident completed
+  await db.update(incidents).set({ status: "completed" }).where(eq(incidents.id, incidentId));
+
+  // Apply score/health consequences
+  if (outcome === "failure") {
+    await dockCityHealth(sessionId, 10, `mission failed: ${incident.title}`);
+  } else if (outcome === "success" && mission.evalVerdict) {
+    await addScore(sessionId, mission.evalVerdict);
+  }
+
+  // Transition heroes to resting — happens now, after player has seen the outcome
+  await Promise.all(
+    dispatchedHeroes.map(async (hero) => {
+      const newHealth = outcome === "failure"
+        ? rollHealthAfterFailure(hero.health)
+        : hero.health;
+      const cooldownUntil = getCooldownUntil(newHealth);
+
+      await db
+        .update(heroes)
+        .set({ availability: "resting", health: newHealth, cooldownUntil })
+        .where(eq(heroes.id, hero.id));
+
+      send(sessionId, "hero:state_update", {
+        heroId: hero.id,
+        alias: hero.alias,
+        availability: "resting",
+        health: newHealth,
+        cooldownUntil: cooldownUntil?.toISOString() ?? null,
+      });
+    }),
+  );
 
   sendJson(res, 200, { ok: true });
 }

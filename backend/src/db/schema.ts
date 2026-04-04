@@ -8,6 +8,7 @@ import {
   timestamp,
   jsonb,
   primaryKey,
+  real,
 } from "drizzle-orm/pg-core";
 import {
   availabilityEnum,
@@ -105,6 +106,8 @@ export const missions = pgTable("missions", {
     .notNull()
     .references(() => incidents.id),
   outcome: missionOutcomeEnum("outcome"),
+  roll: real("roll"),                        // random roll value [0,1] — only set for non-interrupt missions
+  dispatchedStats: jsonb("dispatched_stats"), // combined hero stats at dispatch time — only for non-interrupt
   report: varchar("report", { length: 3000 }),
   evalScore: integer("eval_score"),
   evalVerdict: evalVerdictEnum("eval_verdict"),

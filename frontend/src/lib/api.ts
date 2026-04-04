@@ -1,4 +1,4 @@
-import type { Hero, Session, DebriefHero } from "@/types/api";
+import type { Hero, Session, DebriefHero, RollResult } from "@/types/api";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -48,6 +48,8 @@ export const api = {
       apiPost(`/api/v1/incidents/${id}/interrupt`, { choiceId }),
     debrief: (id: string) =>
       apiFetch<{ heroes: DebriefHero[] }>(`/api/v1/incidents/${id}/debrief`),
+    roll: (id: string) =>
+      apiFetch<RollResult>(`/api/v1/incidents/${id}/roll`, { method: "POST" }),
     acknowledge: (id: string) =>
       apiPost(`/api/v1/incidents/${id}/acknowledge`),
   },

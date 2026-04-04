@@ -108,23 +108,27 @@ export function useSSE(sessionId: string | null) {
       }
       store.updateIncidentStatus(data.incidentId, "debriefing");
       queryClient.invalidateQueries({ queryKey: ["heroes"] });
+
+      // For interrupt missions: outcome is included in SSE (already revealed in interrupt modal).
+      // For non-interrupt missions: outcome is absent — player reveals it via ROLL pin.
+      // rollRevealed=true for interrupt (no roll step needed), false for non-interrupt.
       store.setMissionOutcome(data.incidentId, {
         incidentId: data.incidentId,
         missionId: data.missionId,
         title: data.title,
-        outcome: data.outcome,
+        outcome: data.outcome ?? null,
         heroes: data.heroes,
         evalScore: data.evalScore,
         evalVerdict: data.evalVerdict,
         evalPostOpNote: data.evalPostOpNote,
         rollRevealed: data.hasInterrupt,
-        requiredStats: data.requiredStats ?? {},
-        dispatchedStats: data.dispatchedStats ?? {},
-        roll: data.roll ?? null,
+        requiredStats: {},
+        dispatchedStats: {},
+        roll: null,
       });
-      // For non-interrupt missions the outcome is hidden until the player reveals
-      // the roll — log entries are flushed by setRollRevealed instead.
-      if (data.hasInterrupt) {
+
+      // For interrupt missions: log the outcome now (reveal already happened in interrupt modal).
+      if (data.hasInterrupt && data.outcome) {
         const outcomeType = data.outcome === "success" ? "success" : "failure";
         const title = data.title ? `[${data.title}] ` : "";
         const heroNames = data.heroes?.map((h) => h.alias).join(", ") ?? "";
@@ -136,6 +140,7 @@ export function useSSE(sessionId: string | null) {
           store.addLogEntry(`↳ ${data.evalPostOpNote}`, "eval");
         }
       }
+      // For non-interrupt: log is flushed by setOutcomeRevealed once player clicks ROLL.
     });
 
     es.addEventListener("hero:state_update", (e) => {
@@ -149,7 +154,7 @@ export function useSSE(sessionId: string | null) {
 
     es.addEventListener("session:update", (e) => {
       const data = JSON.parse(e.data) as SSESessionUpdate;
-      useGameStore.getState().applyOrDeferSessionUpdate(data.cityHealth, data.score);
+      useGameStore.getState().updateCityHealth(data.cityHealth, data.score);
     });
 
     es.addEventListener("game:over", (e) => {

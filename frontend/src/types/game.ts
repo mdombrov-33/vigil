@@ -32,7 +32,8 @@ export interface MissionOutcomeState {
   incidentId: string;
   missionId: string;
   title: string;
-  outcome: "success" | "failure";
+  // null for non-interrupt missions until player clicks ROLL and calls /roll endpoint.
+  outcome: "success" | "failure" | null;
   heroes: { heroId: string; alias: string }[];
   evalScore: number | null;
   evalVerdict: EvalVerdict | null;

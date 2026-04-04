@@ -94,16 +94,22 @@ export interface SSEMissionInterruptResolved {
 export interface SSEMissionOutcome {
   incidentId: string;
   missionId: string;
-  outcome: MissionOutcome;
+  // outcome only present for interrupt missions (already revealed in interrupt modal).
+  // For non-interrupt: absent — player reveals via POST /incidents/:id/roll.
+  outcome?: MissionOutcome;
   title: string;
   heroes: { heroId: string; alias: string }[];
   evalScore: number | null;
   evalVerdict: EvalVerdict | null;
   evalPostOpNote: string | null;
   hasInterrupt: boolean;
-  requiredStats?: Record<string, number>;
-  dispatchedStats?: Record<string, number>;
-  roll?: number;
+}
+
+export interface RollResult {
+  outcome: MissionOutcome;
+  roll: number;
+  requiredStats: Record<string, number>;
+  dispatchedStats: Record<string, number> | null;
 }
 
 export interface SSEHeroStateUpdate {
