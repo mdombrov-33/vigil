@@ -1,4 +1,4 @@
-import type { NewHero } from "../../schema.js";
+import type { NewHero } from "../../../schema.js";
 
 export const duchess: NewHero = {
   name: "Diana Vance",

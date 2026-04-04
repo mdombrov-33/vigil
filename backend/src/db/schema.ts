@@ -52,6 +52,10 @@ export const heroes = pgTable("heroes", {
   availability: availabilityEnum("availability").notNull().default("available"),
   health: healthEnum("health").notNull().default("healthy"),
   cooldownUntil: timestamp("cooldown_until"),
+  // Dossier fields
+  age: integer("age"),
+  height: varchar("height", { length: 20 }),
+  labels: jsonb("labels").$type<string[]>(),
   // Profile (used as HeroAgent system prompt material)
   personality: text("personality").notNull(),
   bio: varchar("bio", { length: 1000 }).notNull(),

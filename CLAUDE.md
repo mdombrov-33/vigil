@@ -411,19 +411,19 @@ Defined in `frontend/src/lib/statMeta.ts` — single source of truth for keys, l
 
 ## Roster
 
-| #   | Hero           | Alias        | Threat | Grit | Presence | Edge | Tempo |
-| --- | -------------- | ------------ | ------ | ---- | -------- | ---- | ----- |
-| 1   | Marcus Cole    | Ironwall     | 9      | 10   | 5        | 4    | 2     |
-| 2   | Zara Osei      | Static       | 3      | 4    | 6        | 10   | 6     |
-| 3   | Danny Kowalski | Boom         | 9      | 7    | 4        | 3    | 5     |
-| 4   | Priya Sharma   | Veil         | 2      | 4    | 10       | 8    | 4     |
-| 5   | Rex            | Rex          | 10     | 10   | 1        | 3    | 3     |
-| 6   | Felix Voss     | Fracture     | 6      | 5    | 7        | 5    | 10    |
-| 7   | Agnes Morrow   | Mother Agnes | 1      | 5    | 9        | 7    | 2     |
-| 8   | Kai Park       | Null         | 5      | 6    | 4        | 8    | 7     |
-| 9   | Diana Vance    | Duchess      | 8      | 6    | 5        | 9    | 6     |
+| #   | Hero              | Alias        | Threat | Grit | Presence | Edge | Tempo |
+| --- | ----------------- | ------------ | ------ | ---- | -------- | ---- | ----- |
+| 1   | Dominic Marchetti | Deal         | 1      | 2    | 7        | 5    | 2     |
+| 2   | Kira Solberg      | Zenith       | 6      | 5    | 4        | 2    | 6     |
+| 3   | Felix Voss        | Fracture     | 4      | 2    | 2        | 3    | 8     |
+| 4   | Priya Sharma      | Veil         | 1      | 2    | 8        | 3    | 3     |
+| 5   | Rex               | Rex          | 8      | 8    | 1        | 1    | 2     |
+| 6   | Agnes Morrow      | Mother Agnes | 1      | 6    | 5        | 4    | 1     |
+| 7   | Aleksei Drav      | Coil         | 8      | 3    | 2        | 5    | 4     |
+| 8   | Remi Blanc        | Aegis        | 6      | 7    | 3        | 8    | 3     |
+| 9   | Dorian Hess       | Chorus       | 4      | 4    | 5        | 5    | 4     |
 
-Full `personality` (HeroReportAgent system prompt) and `bio` (NarrativePickAgent + DispatcherAgent reasoning) in `packages/db/src/seed/heroes/<alias>.ts`.
+Full `personality` (HeroReportAgent system prompt) and `bio` (NarrativePickAgent + DispatcherAgent reasoning) in `backend/src/db/seed/heroes/v2/<alias>.ts`.
 
 ---
 

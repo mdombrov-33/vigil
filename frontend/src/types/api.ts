@@ -15,6 +15,9 @@ export interface Hero {
   id: string;
   name: string;
   alias: string;
+  age: number | null;
+  height: string | null;
+  labels: string[] | null;
   threat: number;
   grit: number;
   presence: number;
