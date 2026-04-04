@@ -105,9 +105,8 @@ export function HeroTravelers({ incidents, incidentSlots, incidentHeroes }: Prop
                 style={{
                   width: 28,
                   height: 28,
-                  outline: `2px solid ${color}`,
-                  outlineOffset: 1,
-                  boxShadow: `0 0 8px ${color}70, 0 2px 8px rgba(0,0,0,0.7)`,
+                  border: "1px solid #ffffff15",
+                  boxShadow: `0 2px 8px rgba(0,0,0,0.8)`,
                 }}
               >
                 <AvatarImage src={hero.portraitUrl ?? ""} alt={hero.alias} className="object-top" />
