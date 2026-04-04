@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-04-04
+> Last updated: 2026-04-04 (roll reveal architecture, hero travelers)
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -190,6 +190,7 @@ Receives `MissionContext`: `{ teammates: string[], isLead: boolean, interrupt?: 
 TYPE 1 — No interrupt:
   8a. sleep(missionDuration)
   8b. getMissionOutcome() — quadratic coverage formula
+  8c. UPDATE missions SET roll, dispatched_stats   ← stored for /roll endpoint
 
 TYPE 2 — Interrupt:
   8a. sleep(missionDuration / 2)
@@ -199,19 +200,22 @@ TYPE 2 — Interrupt:
   8e. getInterruptOutcome() — stat check or hero-specific check
   8f. SSE: mission:interrupt:resolved — full options with requiredStat/requiredValue, outcome, combinedValue
 
-9.  If failure → dockCityHealth(-10)
-10. UPDATE incident → debriefing, heroes → missionsCompleted/Failed counters
-11. HeroReportAgent × N (with MissionContext)         [parallel]
-12. ReflectionAgent × N                               [parallel]
-13. UPDATE missionHeroes.report per hero
-14. UPDATE missions.outcome + completedAt
-15. UPDATE heroes → resting + cooldownUntil
-16. SSE: hero:state_update × N
-17. EvalAgent → score/verdict/explanation/postOpNote
-18. If success → addScore() based on verdict
-19. UPDATE missions eval columns
-20. SSE: mission:outcome + log with eval score
+9.  UPDATE incident → debriefing, heroes → missionsCompleted/Failed counters
+10. HeroReportAgent × N (with MissionContext)         [parallel]
+11. ReflectionAgent × N                               [parallel]
+12. UPDATE missionHeroes.report per hero
+13. UPDATE missions.outcome + completedAt
+14. EvalAgent → score/verdict/explanation/postOpNote
+15. UPDATE missions eval columns
+16. SSE: mission:outcome
+    — interrupt missions: includes outcome (already shown in interrupt modal)
+    — non-interrupt missions: outcome OMITTED — revealed when player clicks ROLL pin
+    — NO hero:state_update, NO score/health changes fire here
 ```
+
+**Critical ordering:** score/health and hero resting are intentionally deferred to `POST /acknowledge`.
+This ensures the ROLL pin appears before any consequences telegraph the outcome, and heroes
+remain `on_mission` until the player has fully read the debrief.
 
 ---
 
@@ -228,7 +232,7 @@ One persistent connection per session: `GET /api/v1/sse?sessionId=xxx`
 | `incident:timer_extended`    | Session resume (per pending inc.) | `{ incidentId, expiresAt }` — new wall-clock expiry after backend extends timer                                  |
 | `mission:interrupt`          | Halfway through missionDuration   | `{ incidentId, missionId, topHeroId, heroIds, trigger, options }` (text only, no stats)                          |
 | `mission:interrupt:resolved` | After player choice               | `{ incidentId, missionId, chosenOptionId, outcome, combinedValue, options }` (full options with stat info)       |
-| `mission:outcome`            | Mission pipeline complete         | `{ incidentId, missionId, outcome, title, heroes, evalScore, evalVerdict, evalPostOpNote }`                      |
+| `mission:outcome`            | Mission pipeline complete         | `{ incidentId, missionId, title, heroes, evalScore, evalVerdict, evalPostOpNote, hasInterrupt, outcome? }` — `outcome` only present for interrupt missions |
 | `hero:state_update`          | After hero state changes          | `{ heroId, alias, availability, health, cooldownUntil }`                                                         |
 | `session:update`             | After city health or score change | `{ cityHealth, score }`                                                                                          |
 | `game:over`                  | cityHealth reaches 0              | `{ finalScore }`                                                                                                 |
@@ -280,7 +284,7 @@ return { outcome: roll < successChance ? "success" : "failure", roll, dispatched
 
 Triage sets only 1–3 relevant stats. All-stat padding wrecks the formula by averaging away gaps.
 
-`getMissionOutcome` returns `{ outcome, roll, dispatchedStats }`. The pipeline includes `roll`, `requiredStats`, and `dispatchedStats` in the `mission:outcome` SSE payload for non-interrupt missions only — used by the roll reveal modal.
+`getMissionOutcome` returns `{ outcome, roll, dispatchedStats }`. For non-interrupt missions the pipeline stores `roll` and `dispatched_stats` in the `missions` DB row (new columns). These are **not** sent in the SSE — they're fetched by the frontend when the player clicks the ROLL pin via `POST /incidents/:id/roll`.
 
 **Type 2 (interrupt):**
 
@@ -333,6 +337,10 @@ Both emit `session:update` SSE with current `{ cityHealth, score }`.
 - `interruptTrigger varchar(500)` — one-sentence dispatch-voice context for interrupt modal
 - `arcId varchar(10)` — which arc this incident advances (`arc_a`, `arc_b`) or null if standalone
 
+**Missions table:**
+- `roll real` — random roll value [0,1] stored at mission end; only set for non-interrupt missions
+- `dispatched_stats jsonb` — combined hero stats at dispatch time; only for non-interrupt missions
+
 **Migrations:** always use `make generate name=<migration_name>` — never hand-write SQL migration files.
 
 ---
@@ -372,7 +380,8 @@ Agent (backend) → MCPServerStreamableHttp → localhost:{PORT}/mcp → handler
 | POST   | `/api/v1/incidents/:id/dispatch`    | Dispatch heroes — locks immediately, pipeline fires in background |
 | POST   | `/api/v1/incidents/:id/interrupt`   | Submit interrupt choice                                           |
 | GET    | `/api/v1/incidents/:id/debrief`     | Hero reports for debrief modal                                    |
-| POST   | `/api/v1/incidents/:id/acknowledge` | Move incident debriefing → completed, clear from map              |
+| POST   | `/api/v1/incidents/:id/roll`        | Fetch stored outcome data (roll, stats) — no side effects         |
+| POST   | `/api/v1/incidents/:id/acknowledge` | Commit: score/health + hero resting + incident → completed        |
 | GET    | `/api/v1/heroes`                    | All heroes with current state                                     |
 | GET    | `/api/v1/sse?sessionId=`            | Open SSE stream                                                   |
 
@@ -489,10 +498,14 @@ heroStates               — Record<heroId, { availability, health, cooldownUnti
 interruptState           — active interrupt (null when none)
 interruptQueue[]         — queued interrupts if one is already active
 missionOutcomes          — Record<incidentId, MissionOutcomeState>
+incidentSlots            — Record<incidentId, slotId> — stable map slot assignment (assigned in addIncident, freed in removeIncident)
+incidentHeroes           — Record<incidentId, heroId[]> — which heroes are on each mission (set on dispatch, used by HeroTravelers)
 uiPaused                 — true while any modal is open (controls game logic + backend pause)
 pausedAt                 — wall-clock ms when pause started, null when not paused (controls visual freeze)
 gameOver, sessionComplete, finalScore
 ```
+
+**`MissionOutcomeState.outcome`** is `"success" | "failure" | null`. It starts `null` for non-interrupt missions and is populated when the player clicks ROLL (the `/roll` API response is written to the store via `setOutcomeRevealed`). For interrupt missions outcome is set immediately from the `mission:outcome` SSE.
 
 **Pause tracking — full freeze system:**
 
@@ -539,7 +552,8 @@ app/
 components/
   game/
     GameLayout.tsx              # Header + map area + log panel + roster (roster hidden if !shiftStarted)
-    CityMap.tsx                 # Static image + IncidentPin per active incident
+    CityMap.tsx                 # Static image + IncidentPin per active incident + HeroTravelers
+    HeroTravelers.tsx           # Hero portrait avatars animating from HQ to incident pins (en_route/active only)
     IncidentPin.tsx             # Danger color, SVG countdown ring, ACT NOW pulse for interrupt
     LogPanel.tsx                # CRT-wrapped SDN Comms log
     RosterBar.tsx               # Bottom strip of hero portraits
@@ -550,8 +564,9 @@ components/
   modals/
     IncidentModal.tsx           # Incident briefing, field intel hints, hero slot drag targets, dispatch
     InterruptModal.tsx          # Trigger sentence, interrupt options, stat roll animation, auto-close
-    DebriefModal.tsx            # Dispatch analysis eval, hero field reports
-    HeroDetailModal.tsx         # Hero profile with stat bars and icons
+    RollRevealModal.tsx         # Calls POST /roll on mount, radar chart + cursor animation, sets outcome in store
+    DebriefModal.tsx            # Dispatch analysis eval, hero field reports; acknowledge fires on close
+    HeroDetailModal.tsx         # Hero profile with full-width portrait banner, stat bars, bio
 hooks/
   useSSE.ts                     # EventSource → Zustand writes
   useSession.ts                 # TanStack Query for session state
@@ -567,7 +582,9 @@ types/
 
 ### City Map
 
-Static background image (`/map.webp`, generated via Replicate — dark aerial city, noir aesthetic). 15-20 fixed `{ id, x, y }` positions in `lib/cityLocations.ts` — anonymous gameplay slots. Frontend picks the first unoccupied slot for each new incident. Backend has no concept of location.
+Static background image (`/map.webp`, generated via Replicate — dark aerial city, noir aesthetic). 15-20 fixed `{ id, x, y }` positions in `lib/cityLocations.ts` — anonymous gameplay slots. Slot assignment is stored in `incidentSlots` in the Zustand store (keyed by incidentId) so pins don't shift when other incidents are removed. Backend has no concept of location.
+
+**HeroTravelers:** when heroes are dispatched, their portrait avatars animate from a fixed HQ marker (bottom-center of map) to the incident pin over ~11 seconds (matching the 12s backend travel sleep). Multiple heroes spread horizontally above the pin so they don't overlap the status label. Portraits are visible only during `en_route` and `active` states — they disappear when the incident enters `debriefing`. Hero travel is **not** affected by the UI pause system (backend travel is a fire-and-forget sleep, cannot be paused).
 
 ### InterruptOption type
 
@@ -613,9 +630,11 @@ Pre-choice SSE sends text + `isHeroSpecific` only. Post-choice SSE (`mission:int
 
 **Incident lifecycle:** `pending` → `en_route` → `active` → `debriefing` → `completed` | `expired`
 
-`debriefing` — mission finished, pin stays on map. For non-interrupt missions the pin first shows **ROLL** — player clicks to open the roll reveal modal (`RollRevealModal`), which plays the radar chart + cursor animation, then sets `rollRevealed: true` in the store and the pin switches to **DEBRIEF**. For interrupt missions `rollRevealed` is set to `true` immediately (reveal already happened in `InterruptModal`), so pin goes straight to DEBRIEF. Player clicks DEBRIEF pin → debrief modal (eval + hero reports) → clicks backdrop or X → `POST /:id/acknowledge` moves to `completed` and clears the pin.
+`debriefing` — mission finished, pin stays on map. For non-interrupt missions the pin first shows **ROLL** — player clicks to open `RollRevealModal`. The modal calls `POST /incidents/:id/roll` on mount, which reads the pre-computed outcome + roll + stats from the DB (no side effects). Once data loads, the radar chart + cursor animation plays, `setOutcomeRevealed()` writes outcome/roll/stats into the store and flushes the SDN log entry, and the pin transitions to **DEBRIEF**. For interrupt missions `rollRevealed` is set immediately from the `mission:outcome` SSE (reveal already happened in the interrupt modal), so pin goes straight to DEBRIEF. Player clicks DEBRIEF pin → debrief modal (eval + hero reports) → closes → `POST /:id/acknowledge`.
 
-**Roll reveal modal (`RollRevealModal`):** Recharts `RadarChart` with two overlapping `Radar` layers — orange for required stats, blue for dispatched combined stats. Below: a two-zone bar (green = success window left, red = failure zone right) with an animated cursor that slides from left and lands at the `roll` position. Cursor color flips to green/red on landing, then outcome badge appears. Pointer events disabled on the chart. Backdrop dismissable only after animation completes. `MissionOutcomeState` carries `rollRevealed: boolean`, `requiredStats`, `dispatchedStats`, `roll`.
+**`POST /incidents/:id/acknowledge`** is the commit point for all mission consequences: applies score/health (`dockCityHealth` or `addScore`), transitions heroes to `resting` (computes new health + cooldown), emits `hero:state_update` × N and `session:update` SSE, then marks incident `completed`. Heroes stay `on_mission` in the store until this point — no spoilers before the player has seen the outcome.
+
+**Roll reveal modal (`RollRevealModal`):** accepts `incidentId`, fetches roll data from API on mount. Recharts `RadarChart` with two overlapping `Radar` layers — orange for required stats, blue for dispatched combined stats. Below: a two-zone bar (green = success window left, red = failure zone right) with an animated cursor that slides to the `roll` position. Cursor color flips green/red on landing, outcome badge appears. Backdrop dismissable only after animation completes.
 
 ---
 
