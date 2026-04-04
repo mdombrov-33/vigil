@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Incident, InterruptOption } from "@/types/api";
 import type { LogEntry, HeroState, InterruptState, MissionOutcomeState } from "@/types/game";
+import { cityLocations } from "@/lib/cityLocations";
 
 export type { LogEntry, HeroState, InterruptState, MissionOutcomeState };
 
@@ -15,6 +16,8 @@ interface GameStore {
   interruptQueue: InterruptState[];
   missionOutcomes: Record<string, MissionOutcomeState>;
   pendingSessionUpdate: { cityHealth: number; score: number } | null;
+  incidentSlots: Record<string, number>;   // incidentId → cityLocations slot id
+  incidentHeroes: Record<string, string[]>; // incidentId → heroIds
   uiPaused: boolean;
   pausedAt: number | null; // wall-clock ms when pause started — used as frozen clock reference
   gameOver: boolean;
@@ -33,6 +36,7 @@ interface GameStore {
   setHeroState: (heroId: string, state: HeroState) => void;
   setMissionOutcome: (incidentId: string, state: MissionOutcomeState) => void;
   setRollRevealed: (incidentId: string) => void;
+  setIncidentHeroes: (incidentId: string, heroIds: string[]) => void;
   setUiPaused: (v: boolean) => void;
   clearPausedAt: () => void; // unfreeze visual timers — called by SSE or fallback timeout
   setInterrupt: (state: InterruptState) => void;
@@ -56,6 +60,8 @@ export const useGameStore = create<GameStore>((set) => ({
   interruptQueue: [],
   missionOutcomes: {},
   pendingSessionUpdate: null,
+  incidentSlots: {},
+  incidentHeroes: {},
   uiPaused: false,
   pausedAt: null,
   gameOver: false,
@@ -75,14 +81,31 @@ export const useGameStore = create<GameStore>((set) => ({
     }),
 
   addIncident: (incident) =>
-    set((s) => ({
-      incidents: [...s.incidents.filter((i) => i.id !== incident.id), incident],
-    })),
+    set((s) => {
+      const alreadySlotted = s.incidentSlots[incident.id] != null;
+      const usedSlotIds = new Set(Object.values(s.incidentSlots));
+      const slot = alreadySlotted ? null : cityLocations.find((l) => !usedSlotIds.has(l.id));
+      return {
+        incidents: [...s.incidents.filter((i) => i.id !== incident.id), incident],
+        incidentSlots: slot
+          ? { ...s.incidentSlots, [incident.id]: slot.id }
+          : s.incidentSlots,
+      };
+    }),
 
   removeIncident: (incidentId) =>
-    set((s) => ({
-      incidents: s.incidents.filter((i) => i.id !== incidentId),
-    })),
+    set((s) => {
+      const { [incidentId]: _slot, ...slots } = s.incidentSlots;
+      const { [incidentId]: _heroes, ...heroes } = s.incidentHeroes;
+      return {
+        incidents: s.incidents.filter((i) => i.id !== incidentId),
+        incidentSlots: slots,
+        incidentHeroes: heroes,
+      };
+    }),
+
+  setIncidentHeroes: (incidentId, heroIds) =>
+    set((s) => ({ incidentHeroes: { ...s.incidentHeroes, [incidentId]: heroIds } })),
 
   updateIncidentStatus: (incidentId, status) =>
     set((s) => ({
@@ -188,6 +211,8 @@ export const useGameStore = create<GameStore>((set) => ({
       interruptQueue: [],
       missionOutcomes: {},
       pendingSessionUpdate: null,
+      incidentSlots: {},
+      incidentHeroes: {},
       uiPaused: false,
       pausedAt: null,
       gameOver: false,

@@ -23,7 +23,7 @@ export default function ActiveShiftPage() {
   const sessionId = params.sessionId as string;
   const queryClient = useQueryClient();
 
-  const { setSession, reset, updateIncidentStatus, removeIncident, interruptState, missionOutcomes, setUiPaused, setRollRevealed, sessionComplete, gameOver, score, cityHealth } = useGameStore();
+  const { setSession, reset, updateIncidentStatus, removeIncident, interruptState, missionOutcomes, setUiPaused, setRollRevealed, setIncidentHeroes, sessionComplete, gameOver, score, cityHealth } = useGameStore();
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [selectedHeroIds, setSelectedHeroIds] = useState<string[]>([]);
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
@@ -151,7 +151,10 @@ export default function ActiveShiftPage() {
         onHeroToggle={handleHeroToggle}
         onIncidentClose={() => { setSelectedIncident(null); setSelectedHeroIds([]); resumeGame(); }}
         onDispatched={() => {
-          if (selectedIncident) updateIncidentStatus(selectedIncident.id, "en_route");
+          if (selectedIncident) {
+            updateIncidentStatus(selectedIncident.id, "en_route");
+            setIncidentHeroes(selectedIncident.id, selectedHeroIds);
+          }
           setSelectedIncident(null);
           setSelectedHeroIds([]);
           resumeGame();
