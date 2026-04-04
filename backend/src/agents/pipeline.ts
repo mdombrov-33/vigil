@@ -297,11 +297,6 @@ export async function runMissionPipeline(
     missionDispatchedStats = result.dispatchedStats;
   }
   console.log(`[mission-pipeline] outcome: ${outcome}`);
-  log(sessionId, `Mission outcome: ${outcome.toUpperCase()}`);
-
-  if (outcome === "failure") {
-    await dockCityHealth(sessionId, 10, `mission failed: ${incident.title}`);
-  }
 
   await Promise.all([
     db.update(incidents).set({ status: "debriefing" }).where(eq(incidents.id, incidentId)),
@@ -372,7 +367,43 @@ export async function runMissionPipeline(
     .set({ outcome, completedAt: new Date() })
     .where(eq(missions.id, mission.id));
 
-  console.log(`[mission-pipeline] updating hero states`);
+  console.log(`[mission-pipeline] running eval`);
+  const evalResult = await runEvalAgent(incidentId, dispatchedHeroes);
+  console.log(
+    `[mission-pipeline] eval: ${evalResult.verdict} ${evalResult.score}/10`,
+  );
+
+  await db
+    .update(missions)
+    .set({
+      evalScore: Math.round(evalResult.score),
+      evalVerdict: evalResult.verdict,
+      evalExplanation: evalResult.explanation,
+      evalPostOpNote: evalResult.postOpNote,
+    })
+    .where(eq(missions.id, mission.id));
+
+  // Push completed mission to frontend FIRST — for non-interrupt missions the
+  // ROLL pin must appear before any score/health changes telegraph the outcome.
+  send(sessionId, "mission:outcome", {
+    incidentId,
+    missionId: mission.id,
+    outcome,
+    title: incident.title,
+    heroes: dispatchedHeroes.map((h) => ({ heroId: h.id, alias: h.alias })),
+    evalScore: Math.round(evalResult.score),
+    evalVerdict: evalResult.verdict,
+    evalPostOpNote: evalResult.postOpNote,
+    hasInterrupt: incident.hasInterrupt,
+    ...(missionRoll !== undefined && {
+      roll: missionRoll,
+      requiredStats: incident.requiredStats as Record<string, number>,
+      dispatchedStats: missionDispatchedStats,
+    }),
+  });
+
+  // All SSE that could telegraph the outcome fires AFTER mission:outcome,
+  // so the ROLL pin appears before the player sees any consequences.
   await Promise.all(
     dispatchedHeroes.map(async (hero) => {
       const newHealth =
@@ -398,43 +429,12 @@ export async function runMissionPipeline(
     }),
   );
 
-  console.log(`[mission-pipeline] running eval`);
-  const evalResult = await runEvalAgent(incidentId, dispatchedHeroes);
-  console.log(
-    `[mission-pipeline] eval: ${evalResult.verdict} ${evalResult.score}/10`,
-  );
-
-  await db
-    .update(missions)
-    .set({
-      evalScore: Math.round(evalResult.score),
-      evalVerdict: evalResult.verdict,
-      evalExplanation: evalResult.explanation,
-      evalPostOpNote: evalResult.postOpNote,
-    })
-    .where(eq(missions.id, mission.id));
-
+  if (outcome === "failure") {
+    await dockCityHealth(sessionId, 10, `mission failed: ${incident.title}`);
+  }
   if (outcome === "success") {
     await addScore(sessionId, evalResult.verdict);
   }
-
-  // Push completed mission to frontend
-  send(sessionId, "mission:outcome", {
-    incidentId,
-    missionId: mission.id,
-    outcome,
-    title: incident.title,
-    heroes: dispatchedHeroes.map((h) => ({ heroId: h.id, alias: h.alias })),
-    evalScore: Math.round(evalResult.score),
-    evalVerdict: evalResult.verdict,
-    evalPostOpNote: evalResult.postOpNote,
-    hasInterrupt: incident.hasInterrupt,
-    ...(missionRoll !== undefined && {
-      roll: missionRoll,
-      requiredStats: incident.requiredStats as Record<string, number>,
-      dispatchedStats: missionDispatchedStats,
-    }),
-  });
 
   console.log(`[mission-pipeline] done — mission ${mission.id} complete`);
 }

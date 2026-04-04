@@ -122,15 +122,19 @@ export function useSSE(sessionId: string | null) {
         dispatchedStats: data.dispatchedStats ?? {},
         roll: data.roll ?? null,
       });
-      const outcomeType = data.outcome === "success" ? "success" : "failure";
-      const title = data.title ? `[${data.title}] ` : "";
-      const heroNames = data.heroes?.map((h) => h.alias).join(", ") ?? "";
-      store.addLogEntry(
-        `${title}${data.outcome.toUpperCase()}${data.evalScore != null ? ` — ${data.evalScore}/10 ${data.evalVerdict?.toUpperCase()}` : ""}${heroNames ? ` (${heroNames})` : ""}`,
-        outcomeType
-      );
-      if (data.evalPostOpNote) {
-        store.addLogEntry(`↳ ${data.evalPostOpNote}`, "eval");
+      // For non-interrupt missions the outcome is hidden until the player reveals
+      // the roll — log entries are flushed by setRollRevealed instead.
+      if (data.hasInterrupt) {
+        const outcomeType = data.outcome === "success" ? "success" : "failure";
+        const title = data.title ? `[${data.title}] ` : "";
+        const heroNames = data.heroes?.map((h) => h.alias).join(", ") ?? "";
+        store.addLogEntry(
+          `${title}${data.outcome.toUpperCase()}${data.evalScore != null ? ` — ${data.evalScore}/10 ${data.evalVerdict?.toUpperCase()}` : ""}${heroNames ? ` (${heroNames})` : ""}`,
+          outcomeType
+        );
+        if (data.evalPostOpNote) {
+          store.addLogEntry(`↳ ${data.evalPostOpNote}`, "eval");
+        }
       }
     });
 
@@ -145,7 +149,7 @@ export function useSSE(sessionId: string | null) {
 
     es.addEventListener("session:update", (e) => {
       const data = JSON.parse(e.data) as SSESessionUpdate;
-      useGameStore.getState().updateCityHealth(data.cityHealth, data.score);
+      useGameStore.getState().applyOrDeferSessionUpdate(data.cityHealth, data.score);
     });
 
     es.addEventListener("game:over", (e) => {

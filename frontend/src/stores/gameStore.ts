@@ -14,6 +14,7 @@ interface GameStore {
   interruptState: InterruptState | null;
   interruptQueue: InterruptState[];
   missionOutcomes: Record<string, MissionOutcomeState>;
+  pendingSessionUpdate: { cityHealth: number; score: number } | null;
   uiPaused: boolean;
   pausedAt: number | null; // wall-clock ms when pause started — used as frozen clock reference
   gameOver: boolean;
@@ -23,6 +24,7 @@ interface GameStore {
   // Actions
   setSession: (sessionId: string, cityHealth: number, score: number) => void;
   updateCityHealth: (cityHealth: number, score: number) => void;
+  applyOrDeferSessionUpdate: (cityHealth: number, score: number) => void;
   addIncident: (incident: Incident) => void;
   removeIncident: (incidentId: string) => void;
   updateIncidentStatus: (incidentId: string, status: Incident["status"]) => void;
@@ -53,6 +55,7 @@ export const useGameStore = create<GameStore>((set) => ({
   interruptState: null,
   interruptQueue: [],
   missionOutcomes: {},
+  pendingSessionUpdate: null,
   uiPaused: false,
   pausedAt: null,
   gameOver: false,
@@ -63,6 +66,13 @@ export const useGameStore = create<GameStore>((set) => ({
     set({ sessionId, cityHealth, score }),
 
   updateCityHealth: (cityHealth, score) => set({ cityHealth, score }),
+
+  applyOrDeferSessionUpdate: (cityHealth, score) =>
+    set((s) => {
+      const hasPendingRoll = Object.values(s.missionOutcomes).some((o) => !o.rollRevealed);
+      if (hasPendingRoll) return { pendingSessionUpdate: { cityHealth, score } };
+      return { cityHealth, score, pendingSessionUpdate: null };
+    }),
 
   addIncident: (incident) =>
     set((s) => ({
@@ -113,7 +123,31 @@ export const useGameStore = create<GameStore>((set) => ({
     set((s) => {
       const existing = s.missionOutcomes[incidentId];
       if (!existing) return s;
-      return { missionOutcomes: { ...s.missionOutcomes, [incidentId]: { ...existing, rollRevealed: true } } };
+
+      // Flush the deferred outcome log now that the player has seen the roll
+      const outcomeType = existing.outcome === "success" ? "success" : "failure";
+      const title = existing.title ? `[${existing.title}] ` : "";
+      const heroNames = existing.heroes?.map((h: { alias: string }) => h.alias).join(", ") ?? "";
+      const logMsg = `${title}${existing.outcome.toUpperCase()}${existing.evalScore != null ? ` — ${existing.evalScore}/10 ${existing.evalVerdict?.toUpperCase()}` : ""}${heroNames ? ` (${heroNames})` : ""}`;
+      const newLog: LogEntry = { id: ++logCounter, message: logMsg, type: outcomeType, timestamp: Date.now() };
+      const entries: LogEntry[] = [newLog];
+      if (existing.evalPostOpNote) {
+        entries.push({ id: ++logCounter, message: `↳ ${existing.evalPostOpNote}`, type: "eval", timestamp: Date.now() });
+      }
+
+      const updatedOutcomes = { ...s.missionOutcomes, [incidentId]: { ...existing, rollRevealed: true } };
+      const stillPending = Object.values(updatedOutcomes).some((o) => !o.rollRevealed);
+
+      // Apply deferred session update (score/health) once no rolls remain unrevealed
+      const sessionPatch = (!stillPending && s.pendingSessionUpdate)
+        ? { cityHealth: s.pendingSessionUpdate.cityHealth, score: s.pendingSessionUpdate.score, pendingSessionUpdate: null }
+        : {};
+
+      return {
+        missionOutcomes: updatedOutcomes,
+        logEntries: [...s.logEntries, ...entries],
+        ...sessionPatch,
+      };
     }),
 
   setUiPaused: (v) => set(v ? { uiPaused: true, pausedAt: Date.now() } : { uiPaused: false }),
@@ -153,6 +187,7 @@ export const useGameStore = create<GameStore>((set) => ({
       interruptState: null,
       interruptQueue: [],
       missionOutcomes: {},
+      pendingSessionUpdate: null,
       uiPaused: false,
       pausedAt: null,
       gameOver: false,
