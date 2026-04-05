@@ -10,6 +10,7 @@ import { useGameStore } from "@/stores/gameStore";
 import { useHeroes } from "@/hooks/useHeroes";
 import { useSSE } from "@/hooks/useSSE";
 import { sounds } from "@/sounds";
+import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 import { GameLayout } from "@/components/game/GameLayout";
 import { ShiftEndScreen } from "@/components/game/ShiftEndScreen";
 import { HeroDetailModal } from "@/components/modals/HeroDetailModal";
@@ -32,16 +33,18 @@ export default function ActiveShiftPage() {
   const [debriefIncidentId, setDebriefIncidentId] = useState<string | null>(null);
   const [rollRevealIncidentId, setRollRevealIncidentId] = useState<string | null>(null);
   const [draggingHeroId, setDraggingHeroId] = useState<string | null>(null);
+  const { start: startMusic, stop: stopMusic, volume, setVolume } = useBackgroundMusic();
   const { data: heroes = [] } = useHeroes();
   const { data: sessionData } = useSession(sessionId);
 
   useSSE(sessionId);
 
-  // Reset store on mount
+  // Reset store on mount, start music
   useEffect(() => {
     reset();
     setSession(sessionId, 100, 0);
     queryClient.invalidateQueries({ queryKey: ["heroes"] });
+    startMusic();
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hydrate city health + score from server once session data arrives
@@ -105,6 +108,7 @@ export default function ActiveShiftPage() {
   }
 
   function handleEndShift() {
+    stopMusic();
     reset();
     router.push("/shift");
   }
@@ -162,6 +166,8 @@ export default function ActiveShiftPage() {
           resumeGame();
         }}
         startScreenSlot={null}
+        volume={volume}
+        onVolumeChange={setVolume}
       />
       <HeroDetailModal hero={selectedHero} onClose={() => { setSelectedHero(null); resumeGame(); }} />
       {interruptModalOpen && (

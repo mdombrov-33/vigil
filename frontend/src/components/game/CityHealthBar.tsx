@@ -2,15 +2,18 @@
 
 import { useGameStore } from "@/stores/gameStore";
 import { NumberTicker } from "@/components/ui/number-ticker";
+import { Volume2, VolumeX } from "lucide-react";
 
 const SEGMENTS = 20;
 
 interface Props {
   onEndShift?: () => void;
   shiftStarted?: boolean;
+  volume?: number;
+  onVolumeChange?: (v: number) => void;
 }
 
-export function CityHealthBar({ onEndShift, shiftStarted }: Props) {
+export function CityHealthBar({ onEndShift, shiftStarted, volume, onVolumeChange }: Props) {
   const cityHealth = useGameStore((s) => s.cityHealth);
   const score = useGameStore((s) => s.score);
   const filledSegments = Math.round((cityHealth / 100) * SEGMENTS);
@@ -57,11 +60,34 @@ export function CityHealthBar({ onEndShift, shiftStarted }: Props) {
         </>
       )}
 
+      {/* Volume control */}
+      {shiftStarted && volume !== undefined && onVolumeChange && (
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => onVolumeChange(volume > 0 ? 0 : 0.35)}
+            className="shrink-0 transition-opacity hover:opacity-100"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {volume === 0 ? <VolumeX size={12} /> : <Volume2 size={12} />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volume}
+            onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+            className="w-24 accent-amber-400 cursor-pointer"
+            style={{ height: 3 }}
+          />
+        </div>
+      )}
+
       {/* End shift — right side */}
       {shiftStarted && onEndShift && (
         <button
           onClick={onEndShift}
-          className="ml-auto font-mono text-[9px] tracking-widest uppercase px-2 py-1 hover:opacity-100 transition-opacity"
+          className={`${volume !== undefined ? "" : "ml-auto"} font-mono text-[9px] tracking-widest uppercase px-2 py-1 hover:opacity-100 transition-opacity`}
           style={{ color: "var(--text-muted)", border: "1px solid var(--border-subtle)" }}
         >
           End Shift

@@ -18,6 +18,8 @@ interface Props {
   onIncidentClose: () => void;
   onDispatched: () => void;
   startScreenSlot?: React.ReactNode;
+  volume?: number;
+  onVolumeChange?: (v: number) => void;
 }
 
 export function GameLayout({
@@ -31,6 +33,8 @@ export function GameLayout({
   onIncidentClose,
   onDispatched,
   startScreenSlot,
+  volume,
+  onVolumeChange,
 }: Props) {
   const incidentOpen = !!selectedIncident;
 
@@ -38,7 +42,7 @@ export function GameLayout({
     <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ backgroundColor: "#08080f" }}>
       {/* Header */}
       <div className="h-10 shrink-0 border-b" style={{ borderColor: "#1e1e2e" }}>
-        <CityHealthBar shiftStarted={shiftStarted} onEndShift={onEndShift} />
+        <CityHealthBar shiftStarted={shiftStarted} onEndShift={onEndShift} volume={volume} onVolumeChange={onVolumeChange} />
       </div>
 
       {/* Map + Log */}
