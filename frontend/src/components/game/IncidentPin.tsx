@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useGameStore } from "@/stores/gameStore";
+import { sounds } from "@/sounds";
 import type { Incident } from "@/types/api";
 
 interface Props {
@@ -102,6 +103,7 @@ function TimerRing({
 
 export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending }: Props) {
   const cfg = DANGER_CONFIG[incident.dangerLevel];
+  function handleClick() { sounds.pinClick(); onClick(); }
   const color = cfg.color;
 
   const isPending    = incident.status === "pending";
@@ -113,7 +115,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
   if (hasInterrupt) {
     return (
       <button
-        onClick={onClick}
+        onClick={handleClick}
         className="absolute -translate-x-1/2 -translate-y-1/2"
         style={{ left: `${x}%`, top: `${y}%`, width: 56, height: 56, cursor: "pointer" }}
       >
@@ -232,7 +234,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
     const amber = "#fbbf24";
     return (
       <button
-        onClick={onClick}
+        onClick={handleClick}
         className="absolute -translate-x-1/2 -translate-y-1/2"
         style={{ left: `${x}%`, top: `${y}%`, width: 44, height: 44, cursor: "pointer" }}
       >
@@ -284,7 +286,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
   // Pending — primary state, full visual weight by danger level
   return (
     <button
-      onClick={isClickable ? onClick : undefined}
+      onClick={isClickable ? handleClick : undefined}
       className="absolute -translate-x-1/2 -translate-y-1/2 group"
       style={{
         left: `${x}%`,

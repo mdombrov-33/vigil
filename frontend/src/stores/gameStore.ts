@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Incident, InterruptOption } from "@/types/api";
 import type { LogEntry, HeroState, InterruptState, MissionOutcomeState } from "@/types/game";
-import { cityLocations } from "@/lib/cityLocations";
+import { cityLocations } from "@/config/cityLocations";
 
 export type { LogEntry, HeroState, InterruptState, MissionOutcomeState };
 

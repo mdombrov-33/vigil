@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { useGameStore } from "@/stores/gameStore";
 import { useHeroes } from "@/hooks/useHeroes";
-import { STAT_META_BY_KEY } from "@/lib/statMeta";
-import { api } from "@/lib/api";
+import { STAT_META_BY_KEY } from "@/config/statMeta";
+import { api } from "@/api";
 import type { InterruptOption } from "@/types/api";
 
 // Auto-close delay after resolution animation plays

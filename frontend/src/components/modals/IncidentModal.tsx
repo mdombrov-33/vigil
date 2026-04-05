@@ -2,12 +2,13 @@
 
 import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { sounds } from "@/sounds";
 import Image from "next/image";
 import { useDroppable } from "@dnd-kit/core";
 import { useMutation } from "@tanstack/react-query";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { useHeroes } from "@/hooks/useHeroes";
-import { api } from "@/lib/api";
+import { api } from "@/api";
 import type { Incident } from "@/types/api";
 
 export const dangerMeta = {
@@ -42,7 +43,7 @@ function HeroSlot({ index, heroId, dangerColor, onRemove }: SlotProps) {
         <>
           <Image src={hero.portraitUrl ?? ""} alt={hero.alias} fill sizes="64px" className="object-cover" />
           <button
-            onClick={onRemove}
+            onClick={() => { sounds.slotRemove(); onRemove(); }}
             className="absolute inset-0 bg-black/0 hover:bg-black/60 flex items-center justify-center opacity-0 hover:opacity-100 transition-all"
           >
             <span className="text-white text-sm">✕</span>
@@ -66,6 +67,7 @@ interface Props {
 }
 
 export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose, onDispatched }: Props) {
+  function handleClose() { sounds.modalClose(); onClose(); }
   const { mutate: dispatch, isPending, error, reset: resetMutation } = useMutation({
     mutationFn: ({ incidentId, heroIds }: { incidentId: string; heroIds: string[] }) =>
       api.incidents.dispatch(incidentId, heroIds),
@@ -74,6 +76,7 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
 
   useEffect(() => {
     resetMutation();
+    if (incident) sounds.modalOpen();
   }, [incident?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const danger = incident ? dangerMeta[incident.dangerLevel] : null;
@@ -82,6 +85,7 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
 
   function handleDispatch() {
     if (!incident || !canDispatch) return;
+    sounds.dispatch();
     dispatch({ incidentId: incident.id, heroIds: selectedHeroIds });
   }
 
@@ -96,7 +100,7 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
           >
             {/* Panel */}
             <motion.div
@@ -127,7 +131,7 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
                     {incident.title.toUpperCase()}
                   </h2>
                 </div>
-                <button onClick={onClose} className="font-mono text-xs shrink-0 mt-1 transition-opacity hover:opacity-100"
+                <button onClick={handleClose} className="font-mono text-xs shrink-0 mt-1 transition-opacity hover:opacity-100"
                   style={{ color: "var(--text-muted)" }}>✕</button>
               </div>
 

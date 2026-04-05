@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useHeroes } from "@/hooks/useHeroes";
-import { cityLocations } from "@/lib/cityLocations";
+import { cityLocations } from "@/config/cityLocations";
 import type { Incident } from "@/types/api";
 
 // Fixed HQ — heroes depart from here

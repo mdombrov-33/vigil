@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { MissionOutcomeState } from "@/stores/gameStore";
 import { useDebrief } from "@/hooks/useDebrief";
-import { api } from "@/lib/api";
+import { api } from "@/api";
+import { sounds } from "@/sounds";
 
 const verdictMeta = {
   optimal:    { color: "#22c55e", label: "OPTIMAL" },
@@ -26,9 +27,11 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
   const heroes = data?.heroes ?? [];
 
   useEffect(() => { setActiveHeroIdx(0); }, [incidentId]);
+  useEffect(() => { if (outcome && incidentId) sounds.modalOpen(); }, [incidentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleAck() {
     if (!incidentId) return;
+    sounds.modalClose();
     api.incidents.acknowledge(incidentId);
     onClose();
   }

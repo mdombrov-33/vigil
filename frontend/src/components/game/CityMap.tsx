@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useGameStore } from "@/stores/gameStore";
-import { cityLocations } from "@/lib/cityLocations";
+import { cityLocations } from "@/config/cityLocations";
 import { IncidentPin } from "./IncidentPin";
 import { HeroTravelers } from "./HeroTravelers";
 import type { Incident } from "@/types/api";

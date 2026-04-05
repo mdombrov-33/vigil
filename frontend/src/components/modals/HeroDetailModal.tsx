@@ -2,9 +2,11 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { useEffect } from "react";
 import { useGameStore } from "@/stores/gameStore";
 import type { Hero } from "@/types/api";
-import { STAT_META } from "@/lib/statMeta";
+import { sounds } from "@/sounds";
+import { STAT_META } from "@/config/statMeta";
 
 interface Props {
   hero: Hero | null;
@@ -49,6 +51,8 @@ const availabilityBadge: Record<string, { label: string; color: string }> = {
 };
 
 export function HeroDetailModal({ hero, onClose }: Props) {
+  useEffect(() => { if (hero) sounds.modalOpen(); }, [hero?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  function handleClose() { sounds.modalClose(); onClose(); }
   const heroState = hero ? useGameStore.getState().heroStates[hero.id] : null;
   const availability = heroState?.availability ?? hero?.availability;
   const health = heroState?.health ?? hero?.health;
@@ -72,7 +76,7 @@ export function HeroDetailModal({ hero, onClose }: Props) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
           />
 
           <motion.div
@@ -157,7 +161,7 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
-                      <button onClick={onClose}
+                      <button onClick={handleClose}
                         className="font-mono text-xs w-6 h-6 flex items-center justify-center hover:opacity-100 transition-opacity"
                         style={{ color: "var(--text-muted)", border: "1px solid #1e1e2e" }}>
                         ✕

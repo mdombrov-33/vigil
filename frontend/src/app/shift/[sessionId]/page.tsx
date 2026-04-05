@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
-import { api } from "@/lib/api";
+import { api } from "@/api";
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useGameStore } from "@/stores/gameStore";
 import { useHeroes } from "@/hooks/useHeroes";
 import { useSSE } from "@/hooks/useSSE";
+import { sounds } from "@/sounds";
 import { GameLayout } from "@/components/game/GameLayout";
 import { ShiftEndScreen } from "@/components/game/ShiftEndScreen";
 import { HeroDetailModal } from "@/components/modals/HeroDetailModal";
@@ -129,6 +130,7 @@ export default function ActiveShiftPage() {
     if (!String(over.id).startsWith("slot-")) return;
     const heroId = active.data.current?.heroId as string | undefined;
     if (heroId == null) return;
+    sounds.slotDrop();
     handleHeroToggle(heroId);
   }
 

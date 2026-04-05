@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { GameLayout } from "@/components/game/GameLayout";
 import { StartScreen } from "@/components/game/StartScreen";
-import { api } from "@/lib/api";
+import { api } from "@/api";
 
 export default function ShiftPage() {
   const router = useRouter();

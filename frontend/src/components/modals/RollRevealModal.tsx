@@ -11,7 +11,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useGameStore } from "@/stores/gameStore";
-import { api } from "@/lib/api";
+import { api } from "@/api";
+import { sounds } from "@/sounds";
 import type { RollResult } from "@/types/api";
 import { Confetti, type ConfettiRef } from "@/components/ui/confetti";
 
@@ -68,7 +69,7 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
   // Once roll data is loaded, start the animation sequence
   useEffect(() => {
     if (!rollData) return;
-    const t1 = setTimeout(() => setShowRoll(true), 800);
+    const t1 = setTimeout(() => { setShowRoll(true); sounds.rollSpin(); }, 800);
     return () => clearTimeout(t1);
   }, [rollData]);
 
@@ -76,6 +77,8 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
     if (!showRoll || !rollData) return;
     const t = setTimeout(() => {
       setShowResult(true);
+      sounds.rollLand();
+      if (rollData.outcome === "failure") sounds.failure();
       if (rollData.outcome === "success") {
         confettiRef.current?.fire({
           particleCount: 80,
