@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGameStore } from "@/stores/gameStore";
 import { sounds } from "@/sounds";
 import type { Incident } from "@/types/api";
@@ -40,27 +40,35 @@ function TimerRing({
   const circ = CIRCUMFERENCE(radius);
   const size = (radius + 5) * 2;
 
-  const compute = (now: number) => {
-    const total = new Date(expiresAt).getTime() - new Date(createdAt).getTime();
-    const remaining = new Date(expiresAt).getTime() - now;
-    return Math.max(0, Math.min(1, remaining / total));
-  };
+  const totalMs = useRef(new Date(expiresAt).getTime() - new Date(createdAt).getTime());
+  const remainingMs = useRef(new Date(expiresAt).getTime() - Date.now());
+  const lastTickAt = useRef(Date.now());
 
-  const [progress, setProgress] = useState(() => compute(Date.now()));
+  const [progress, setProgress] = useState(() =>
+    Math.max(0, Math.min(1, remainingMs.current / totalMs.current))
+  );
 
+  // Freeze: snapshot remaining ms at pause moment
   useEffect(() => {
     if (pausedAt === null) return;
-    setProgress(compute(pausedAt));
+    remainingMs.current = Math.max(0, remainingMs.current - (pausedAt - lastTickAt.current));
+    setProgress(Math.max(0, Math.min(1, remainingMs.current / totalMs.current)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pausedAt]);
 
+  // Tick: decrement remainingMs by elapsed real time, no expiresAt involved
   useEffect(() => {
     if (pausedAt !== null) return;
-    setProgress(compute(Date.now()));
-    const iv = setInterval(() => setProgress(compute(Date.now())), 500);
+    lastTickAt.current = Date.now();
+    const iv = setInterval(() => {
+      const now = Date.now();
+      remainingMs.current = Math.max(0, remainingMs.current - (now - lastTickAt.current));
+      lastTickAt.current = now;
+      setProgress(Math.max(0, Math.min(1, remainingMs.current / totalMs.current)));
+    }, 500);
     return () => clearInterval(iv);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expiresAt, pausedAt]);
+  }, [pausedAt]);
 
   const isUrgent = progress < 0.25;
   const strokeColor = isUrgent ? "#ef4444" : color;
