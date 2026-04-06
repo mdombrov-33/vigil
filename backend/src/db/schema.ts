@@ -113,7 +113,6 @@ export const missions = pgTable("missions", {
   outcome: missionOutcomeEnum("outcome"),
   roll: real("roll"),                        // random roll value [0,1] — only set for non-interrupt missions
   dispatchedStats: jsonb("dispatched_stats"), // combined hero stats at dispatch time — only for non-interrupt
-  report: varchar("report", { length: 3000 }),
   evalScore: integer("eval_score"),
   evalVerdict: evalVerdictEnum("eval_verdict"),
   evalExplanation: text("eval_explanation"),

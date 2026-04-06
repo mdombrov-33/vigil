@@ -22,7 +22,7 @@ export async function getHeroMissionHistory(heroId: string) {
     .select({
       missionId: missions.id,
       outcome: missions.outcome,
-      report: missions.report,
+      report: missionHeroes.report,
       startedAt: missions.startedAt,
       completedAt: missions.completedAt,
       incidentTitle: incidents.title,

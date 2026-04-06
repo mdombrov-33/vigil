@@ -99,6 +99,13 @@
       "when": 1775477135576,
       "tag": "0013_add_linked_hero_alias",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1775478038215,
+      "tag": "0014_drop_missions_report_column",
+      "breakpoints": true
     }
   ]
 }
