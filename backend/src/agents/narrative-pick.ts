@@ -16,11 +16,11 @@ You are looking for narrative fit:
 - A hero whose background or training gives them a meaningful edge here
 - A hero whose character — how they operate, what they know, what they've done — makes them the obvious choice
 
-Examples of what you're looking for:
-- Tunnel collapse with hot wiring → Boom. Former EOD. He understands what holds a structure together and what takes it apart. His power is internally generated explosive force — he can apply or redirect that force with precision in exactly the kind of physical crisis this is.
-- Rogue AI taking over transit infrastructure → Static. She manipulates electromagnetic fields. Electronics are her domain. This is literally what she does.
-- Crowd about to become a riot, cameras rolling → Veil. Reads and modulates emotional states. The whole incident is about people on the edge. She de-escalates, she is the Agency's media face, she's done this before.
-- Enhanced suspect with unknown ability → Null. That's the entire job description.
+Examples of the reasoning you're looking for:
+- Tunnel collapse with structural hot wiring → the hero who is former EOD and generates explosive force with precision. That's their exact domain.
+- Rogue AI taking over transit infrastructure → the hero who manipulates electromagnetic fields. Electronics are literally their power.
+- Crowd about to riot, cameras rolling → the hero who reads and modulates emotional states, has done public-facing de-escalation before.
+- Enhanced suspect with unknown ability → the hero whose entire kit is built around neutralizing enhanced individuals.
 
 Pick the hero who would look at this incident and say "yes, this is mine." Not the hero who is technically capable — the hero who is specifically built for this.
 

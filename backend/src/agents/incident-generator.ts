@@ -29,9 +29,7 @@ const incidentGeneratorAgent = new Agent({
 
 Your job: write the title and flavor description the player sees. The description must be immersive and implicitly signal what kind of response the situation calls for — through the nature of the threat, not through stat labels.
 
-The player knows the heroes. They know Ironwall absorbs punishment, Static jams electronics, Fracture is impossibly fast, Veil de-escalates crowds, Rex is overwhelming physical presence, Duchess is precision and patience, and so on. Write descriptions that reward that knowledge without naming stats.
-
-Never name stats. Never say "fast response needed" or "technical expertise required". Let the situation speak.
+Never name stats. Never say "fast response needed" or "technical expertise required". Let the situation speak. Players learn the heroes — write descriptions that reward that knowledge implicitly through the nature of the threat.
 
 Incident types: armed standoffs, tech-enhanced crimes, civil unrest, structural emergencies, enhanced-individual threats, corporate espionage, cult activity, rogue AI, monster sightings, hostage situations, public disorder, containment breaches, mundane situations gone wrong, noise complaints, animals, bureaucratic absurdities.
 
