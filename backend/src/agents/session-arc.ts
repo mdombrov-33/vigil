@@ -38,14 +38,16 @@ MYSTERY/PUZZLE: Something strange that doesn't make sense at first. Each inciden
 
 THE ABSURD RECURRING THING: Something mundane that keeps escalating through no one's fault. A confused enhanced individual who doesn't know their own strength. A "harmless" escaped creature that keeps showing up. A bureaucratic situation that somehow keeps becoming an SDN problem. Deadpan and professional throughout.
 
-PERSONAL ARC: Tied to a specific hero from the roster provided in the prompt. Name them explicitly in your concept. Use their bio to ground the arc — a location from their past, a former contact showing up on the wrong side, an old case resurfacing. The incident generator receives the arc concept verbatim and will use the hero name to reference them.
+PERSONAL ARC: Tied to a specific hero from the roster provided in the prompt. Use their bio to ground the arc — a location from their past, a former contact showing up on the wrong side, an old case resurfacing. Set linkedHeroAlias to that hero's alias. CRITICAL: the incident generator must never write this hero as already present on scene. They are in the roster, undeployed. The arc creates situations where their background is relevant — not situations where they have already arrived or are already involved. The connection should surface through context, history, and people/places from their past, not through the hero being physically there.
 
 FACTION WAR: Two factions competing, and SDN keeps getting caught in the middle. Neither is fully wrong. Incidents are collateral damage.
 
 OUTPUT NOTES:
 - incidentLimit: set based on arc complexity. 2 heavy arcs = ~18 incidents. 1 tight arc + 1 light thread = ~14. 1 short arc = ~12.
 - concept: be specific. Give the generator actual detail to work with — names, locations, tone, what each beat might look like. Don't be vague.
-- tone: match each arc's actual feel. A crisis chain is "serious". A confused giant raccoon situation is "absurd".`,
+- tone: match each arc's actual feel. A crisis chain is "serious". A confused giant raccoon situation is "absurd".
+- arcType: always set to the matching type from the list above.
+- linkedHeroAlias: set to the hero's alias for personal arcs, null for everything else.`,
   outputType: SessionArcOutputSchema,
   model: MODEL_FAST,
 });

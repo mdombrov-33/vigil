@@ -93,6 +93,7 @@ export const incidents = pgTable("incidents", {
   interruptOptions: jsonb("interrupt_options"), // InterruptOption[] | null
   topHeroId: uuid("top_hero_id"),
   arcId: varchar("arc_id", { length: 10 }), // which arc this incident advances (arc_a, arc_b) or null if standalone
+  linkedHeroAlias: varchar("linked_hero_alias", { length: 100 }), // for personal arc incidents — the hero whose background this connects to
   // Lifecycle
   status: incidentStatusEnum("status").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

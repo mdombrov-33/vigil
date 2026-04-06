@@ -15,6 +15,8 @@ export const ArcSeedSchema = z.object({
   concept: z.string().describe("Rich description for the incident generator to use when advancing this thread. Include tone, escalation pattern, what changes across beats, any named NPCs or locations."),
   tone: z.string().describe("The emotional register of this arc — e.g. 'serious', 'absurd', 'tense', 'darkly comic', 'bureaucratic nightmare'. Freeform."),
   targetBeats: z.number().min(2).max(4).describe("How many incidents across the session should reference this thread"),
+  arcType: z.enum(["villain", "crisis", "diplomatic", "mystery", "absurd", "personal", "faction"]).describe("The structural type of this arc."),
+  linkedHeroAlias: z.string().nullable().describe("For personal arcs only: the alias of the hero this arc is tied to. Null for all other arc types."),
 });
 export type ArcSeed = z.infer<typeof ArcSeedSchema>;
 

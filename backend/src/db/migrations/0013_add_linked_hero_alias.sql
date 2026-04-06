@@ -1,0 +1,1 @@
+ALTER TABLE "incidents" ADD COLUMN "linked_hero_alias" varchar(100);

@@ -168,6 +168,7 @@ export default function ActiveShiftPage() {
         startScreenSlot={null}
         volume={volume}
         onVolumeChange={setVolume}
+        linkedHeroAlias={selectedIncident?.linkedHeroAlias ?? null}
       />
       <HeroDetailModal hero={selectedHero} onClose={() => { setSelectedHero(null); resumeGame(); }} />
       {interruptModalOpen && (

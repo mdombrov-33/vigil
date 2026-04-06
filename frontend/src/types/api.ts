@@ -54,6 +54,7 @@ export interface Incident {
   createdAt: string;
   expiresAt: string;
   topHeroId?: string | null;
+  linkedHeroAlias?: string | null;
 }
 
 export interface Session {
@@ -72,6 +73,7 @@ export interface SSEIncidentNew {
   slotCount: number;
   dangerLevel: DangerLevel;
   hasInterrupt: boolean;
+  linkedHeroAlias?: string | null;
   createdAt: string;
   expiresAt: string;
 }

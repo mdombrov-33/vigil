@@ -20,6 +20,7 @@ interface Props {
   startScreenSlot?: React.ReactNode;
   volume?: number;
   onVolumeChange?: (v: number) => void;
+  linkedHeroAlias?: string | null;
 }
 
 export function GameLayout({
@@ -35,6 +36,7 @@ export function GameLayout({
   startScreenSlot,
   volume,
   onVolumeChange,
+  linkedHeroAlias,
 }: Props) {
   const incidentOpen = !!selectedIncident;
 
@@ -79,6 +81,7 @@ export function GameLayout({
             selectedHeroIds={incidentOpen ? selectedHeroIds : []}
             selectionMode={false}
             dragEnabled={incidentOpen}
+            linkedHeroAlias={incidentOpen ? linkedHeroAlias : null}
           />
         </div>
       )}

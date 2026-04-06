@@ -11,6 +11,7 @@ interface Props {
   maxSelections?: number;
   onHeroSelect?: (heroId: string) => void;
   dragEnabled?: boolean;
+  linkedHeroAlias?: string | null;
 }
 
 export function RosterBar({
@@ -20,6 +21,7 @@ export function RosterBar({
   maxSelections,
   onHeroSelect,
   dragEnabled = false,
+  linkedHeroAlias,
 }: Props) {
   const { data: heroes = [] } = useHeroes();
 
@@ -49,6 +51,7 @@ export function RosterBar({
             onClick={() => handleClick(hero)}
             selected={selectedHeroIds.includes(hero.id)}
             draggable={dragEnabled}
+            linked={!!linkedHeroAlias && hero.alias.toLowerCase() === linkedHeroAlias.toLowerCase()}
             selectable={
               selectionMode
                 ? selectedHeroIds.includes(hero.id) || maxSelections == null || selectedHeroIds.length < maxSelections

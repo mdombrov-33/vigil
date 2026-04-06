@@ -12,6 +12,7 @@ interface Props {
   selected?: boolean;
   selectable?: boolean;
   draggable?: boolean;
+  linked?: boolean; // true when this hero is tied to the current incident's personal arc
 }
 
 function useCooldownDisplay(cooldownUntil: string | null) {
@@ -38,7 +39,7 @@ function useCooldownDisplay(cooldownUntil: string | null) {
   return secondsLeft;
 }
 
-export function HeroPortrait({ hero, onClick, selected, selectable, draggable: isDraggable = false }: Props) {
+export function HeroPortrait({ hero, onClick, selected, selectable, draggable: isDraggable = false, linked = false }: Props) {
   const heroState = useGameStore((s) => s.heroStates[hero.id]);
   const availability = heroState?.availability ?? hero.availability;
   const health = heroState?.health ?? hero.health;
@@ -63,6 +64,7 @@ export function HeroPortrait({ hero, onClick, selected, selectable, draggable: i
   const borderColor = isDown ? "#3f1a1a"
     : isOnMission ? "#3b82f6"
     : selected ? "#3b82f6"
+    : linked ? "#fbbf24"
     : "#1e1e2e";
 
   return (
@@ -79,10 +81,10 @@ export function HeroPortrait({ hero, onClick, selected, selectable, draggable: i
       }}
     >
       <div
-        className="relative w-36 h-36 rounded overflow-hidden transition-all"
+        className={`relative w-36 h-36 rounded overflow-hidden transition-all ${linked ? "animate-pulse" : ""}`}
         style={{
           border: `2px solid ${borderColor}`,
-          boxShadow: isOnMission ? `0 0 12px #3b82f640` : selected ? `0 0 12px #3b82f660` : "none",
+          boxShadow: isOnMission ? `0 0 12px #3b82f640` : selected ? `0 0 12px #3b82f660` : linked ? `0 0 14px #fbbf2450` : "none",
           transform: isDragging ? "scale(1.05)" : "none",
         }}
       >

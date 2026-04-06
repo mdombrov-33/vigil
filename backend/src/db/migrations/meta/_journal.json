@@ -92,6 +92,13 @@
       "when": 1775314735310,
       "tag": "0012_add_hero_dossier_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1775477135576,
+      "tag": "0013_add_linked_hero_alias",
+      "breakpoints": true
     }
   ]
 }

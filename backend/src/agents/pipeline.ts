@@ -114,17 +114,26 @@ export async function runIncidentCreationPipeline(
   console.log(`[incident-pipeline] generated: "${title}"`);
   log(sessionId, `Incident detected: ${title}`);
 
-  // Triage (stat analysis) + narrative pick (power/bio fit) in parallel
+  // Resolve linkedHeroAlias from arc seed if this incident belongs to a personal arc
+  const matchedArc = arcId ? arcSeeds.find((a) => a.id === arcId) : null;
+  const linkedHeroAlias = (matchedArc as any)?.arcType === "personal"
+    ? ((matchedArc as any)?.linkedHeroAlias ?? null)
+    : null;
+  const linkedHero = linkedHeroAlias
+    ? availableHeroes.find((h) => h.alias.toLowerCase() === linkedHeroAlias.toLowerCase()) ?? null
+    : null;
+
+  // Triage always runs. NarrativePickAgent is skipped for personal arcs — linked hero is always topHero.
   const [triage, narrativePick] = await Promise.all([
     runTriageAgent(description),
-    runNarrativePickAgent(description, availableHeroes),
+    linkedHero ? Promise.resolve({ heroId: linkedHero.id, reasoning: "personal arc — linked hero" }) : runNarrativePickAgent(description, availableHeroes),
   ]);
   const narrativeHero = availableHeroes.find((h) => h.id === narrativePick.heroId);
   console.log(
     `[incident-pipeline] triage done — danger:${triage.dangerLevel} slots:${triage.slotCount} available heroes:${availableHeroes.length}`,
   );
   console.log(
-    `[incident-pipeline] narrative top-1: ${narrativeHero?.alias ?? narrativePick.heroId} — ${narrativePick.reasoning}`,
+    `[incident-pipeline] narrative top-1: ${narrativeHero?.alias ?? narrativePick.heroId}${linkedHero ? " (personal arc)" : ` — ${narrativePick.reasoning}`}`,
   );
   log(
     sessionId,
@@ -160,6 +169,7 @@ export async function runIncidentCreationPipeline(
       interruptOptions: triage.interruptOptions ?? null,
       topHeroId: narrativePick.heroId,
       arcId: arcId ?? null,
+      linkedHeroAlias: linkedHeroAlias ?? null,
       expiresAt,
     })
     .returning();
@@ -177,6 +187,7 @@ export async function runIncidentCreationPipeline(
     slotCount: incident.slotCount,
     dangerLevel: incident.dangerLevel,
     hasInterrupt: incident.hasInterrupt,
+    linkedHeroAlias: incident.linkedHeroAlias ?? null,
     createdAt: incident.createdAt,
     expiresAt: incident.expiresAt,
   });

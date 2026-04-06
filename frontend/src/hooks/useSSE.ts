@@ -46,6 +46,7 @@ export function useSSE(sessionId: string | null) {
         dangerLevel: data.dangerLevel,
         slotCount: data.slotCount,
         hasInterrupt: data.hasInterrupt,
+        linkedHeroAlias: data.linkedHeroAlias ?? null,
         status: "pending",
         createdAt: data.createdAt,
         expiresAt: data.expiresAt,
