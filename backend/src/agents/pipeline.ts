@@ -254,6 +254,7 @@ export async function runMissionPipeline(
       topHeroId: incident.topHeroId,
       heroIds,
       trigger: incident.interruptTrigger ?? null,
+      interruptDurationMs: halfMs,
       options: options.map((o) => ({
         id: o.id,
         text: o.text,

@@ -85,6 +85,8 @@ export function useSSE(sessionId: string | null) {
         topHeroId: data.topHeroId,
         heroIds: data.heroIds ?? [],
         trigger: data.trigger ?? null,
+        interruptCreatedAt: new Date().toISOString(),
+        interruptDurationMs: data.interruptDurationMs,
         options: data.options,
       });
       useGameStore.getState().updateIncidentStatus(data.incidentId, "active");

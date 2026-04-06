@@ -244,7 +244,7 @@ export function InterruptModal({ onClose }: Props) {
   useEffect(() => {
     if (!isResolved) return;
     const timer = setTimeout(() => {
-      handleClose();
+      handleCloseAfterResolution();
     }, RESOLVE_AUTOCLOSE_MS);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,6 +263,12 @@ export function InterruptModal({ onClose }: Props) {
   }
 
   function handleClose() {
+    setSubmittedId(null);
+    setError(null);
+    onClose();
+  }
+
+  function handleCloseAfterResolution() {
     clearInterrupt();
     setSubmittedId(null);
     setError(null);

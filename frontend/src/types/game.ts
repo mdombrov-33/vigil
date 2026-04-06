@@ -19,6 +19,8 @@ export interface InterruptState {
   topHeroId: string | null;
   heroIds: string[];
   trigger: string | null;
+  interruptCreatedAt: string;
+  interruptDurationMs: number;
   options: InterruptOption[];
   resolved?: {
     chosenOptionId: string;

@@ -28,11 +28,13 @@ function TimerRing({
   expiresAt,
   color,
   radius,
+  strokeWidth = 1.5,
 }: {
   createdAt: string;
   expiresAt: string;
   color: string;
   radius: number;
+  strokeWidth?: number;
 }) {
   const pausedAt = useGameStore((s) => s.pausedAt);
   const circ = CIRCUMFERENCE(radius);
@@ -81,13 +83,13 @@ function TimerRing({
         cx={size / 2} cy={size / 2} r={radius}
         fill="none"
         stroke={`${strokeColor}18`}
-        strokeWidth={1.5}
+        strokeWidth={strokeWidth}
       />
       <circle
         cx={size / 2} cy={size / 2} r={radius}
         fill="none"
         stroke={strokeColor}
-        strokeWidth={isUrgent ? 2 : 1.5}
+        strokeWidth={isUrgent ? strokeWidth + 0.5 : strokeWidth}
         strokeDasharray={circ}
         strokeDashoffset={offset}
         strokeLinecap="round"
@@ -103,6 +105,7 @@ function TimerRing({
 
 export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending }: Props) {
   const cfg = DANGER_CONFIG[incident.dangerLevel];
+  const interruptState = useGameStore((s) => s.interruptState);
   function handleClick() { sounds.pinClick(); onClick(); }
   const color = cfg.color;
 
@@ -113,30 +116,31 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
 
   // Interrupt overrides everything — it's an alarm state
   if (hasInterrupt) {
+    const interruptCreatedAt = interruptState?.incidentId === incident.id
+      ? interruptState.interruptCreatedAt
+      : null;
+    const interruptDurationMs = interruptState?.incidentId === incident.id
+      ? interruptState.interruptDurationMs
+      : null;
+    const interruptExpiresAt = interruptCreatedAt && interruptDurationMs
+      ? new Date(new Date(interruptCreatedAt).getTime() + interruptDurationMs).toISOString()
+      : null;
     return (
       <button
         onClick={handleClick}
         className="absolute -translate-x-1/2 -translate-y-1/2"
         style={{ left: `${x}%`, top: `${y}%`, width: 56, height: 56, cursor: "pointer" }}
       >
-        {/* Aggressive outer pulse */}
-        <span
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            inset: 0,
-            border: "1px solid #ef4444",
-            animation: "ping 0.6s ease-out infinite",
-            opacity: 0.7,
-          }}
-        />
-        <span
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            inset: 6,
-            border: "1px solid #ef444480",
-            animation: "ping 0.6s ease-out 0.2s infinite",
-          }}
-        />
+        {/* Interrupt timer ring — single thick ring */}
+        {interruptCreatedAt && interruptExpiresAt && (
+          <TimerRing
+            createdAt={interruptCreatedAt}
+            expiresAt={interruptExpiresAt}
+            color="#ef4444"
+            radius={22}
+            strokeWidth={4}
+          />
+        )}
         {/* Core */}
         <span
           className="absolute"

@@ -67,11 +67,6 @@ export default function ActiveShiftPage() {
 
   // Auto-open when a new interrupt arrives; auto-close when cleared
   useEffect(() => {
-    if (interruptState && !interruptState.resolved) {
-      setInterruptModalOpen(true);
-      setUiPaused(true);
-      api.sessions.pause(sessionId);
-    }
     if (!interruptState) setInterruptModalOpen(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interruptState?.incidentId]);
