@@ -31,7 +31,7 @@ Your job: write the title and flavor description the player sees. The descriptio
 
 Never name stats. Never say "fast response needed" or "technical expertise required". Let the situation speak. Players learn the heroes — write descriptions that reward that knowledge implicitly through the nature of the threat.
 
-Incident types: armed standoffs, tech-enhanced crimes, civil unrest, structural emergencies, enhanced-individual threats, corporate espionage, cult activity, rogue AI, monster sightings, hostage situations, public disorder, containment breaches, mundane situations gone wrong, noise complaints, animals, bureaucratic absurdities.
+Incident types — lean toward the dramatic end: enhanced-individual threats, armed standoffs, powered confrontations, tech-enhanced crimes, organised faction activity, hostage situations, containment breaches, rogue AI, monster sightings, corporate espionage, cult activity. Civil unrest, structural emergencies, and public disorder are fine. Mundane situations (noise complaints, bureaucratic absurdities, animals) should be occasional texture, not the default.
 
 TONE: Nova City is a superhero comic — mostly serious, stakes are real, but with natural comic relief. Some incidents are grim. Some are darkly funny. Some are just a Tuesday. The game never winks — even absurd situations are written with complete professional deadpan. Danger level and tone are independent: a Danger 3 can have an absurd premise that escalated badly. A Danger 1 can be treated with exhausted professionalism.
 
@@ -61,6 +61,8 @@ FORMAT: Pick one of the following formats for the description. Vary across incid
 8. HQ SATELLITE NOTE — Terse, clinical, based on remote observation.
    Example: "Thermal imaging at grid 7-Alpha shows eleven heat signatures stationary for six hours. One is significantly larger than the others. No movement. No communication. Recommend eyes on scene."
 
+Format examples above skew mundane for brevity — the full range includes major threats. A Danger 3 DISPATCH LOG might read: "Armed unit with exo-assisted hardware has breached the Vanthorpe Data Exchange. Three guards are unaccounted for. Suspect matches the description from the Portside incident last month — the one we didn't close." An INTERCEPTED COMMS might be mid-operation chatter from an organised crew. An ANONYMOUS TIP might point at something that turns out to be serious. Don't let the format examples anchor you to small-scale incidents.
+
 Title: short, punchy, specific. Vary tone with the format — can be deadpan, bureaucratic, or urgent. Not "Robbery" — "Armed Standoff at Meridian Trust". Or "Man in Exosuit, Again". Or "Noise Complaint — Caller Insists It's Not a Raccoon".
 
 CRITICAL: Never include the format name in the output. Do not prefix the description with "INTERNAL MEMO:", "DISPATCH LOG:", "CALLER TRANSCRIPT:", or any label. Just write the description in that voice and style — the label is for your reference only.`,
@@ -72,11 +74,11 @@ export async function runIncidentGeneratorAgent(ctx?: SessionContext): Promise<I
   let prompt = "Generate a new Nova City incident.";
 
   if (ctx && ctx.arcSeeds.length > 0) {
-    const position = ctx.incidentNumber <= 2
-      ? "early shift — warm up, standalone incidents are fine"
+    const position = ctx.incidentNumber === 1
+      ? "opening incident — set the shift's tone, can be dramatic or low-key, standalone"
       : ctx.incidentNumber >= ctx.incidentLimit - 3
       ? "late shift — arc threads should be wrapping up or climaxing"
-      : "mid shift — mix of standalone and arc beats";
+      : "mid shift — mix of standalone and arc beats, arcs should be surfacing by now";
 
     // Build arc blocks with previous beats if any
     const arcBlock = ctx.arcSeeds.map((arc) => {
@@ -122,7 +124,7 @@ PACING GUIDANCE:
 - If a previous beat ended in failure or poor dispatch, the world should reflect it — the situation may have worsened.
 - Avoid repeating incident types that appeared recently.
 - If you advance an arc, set arcId to that arc's ID (e.g. "arc_a"). If standalone, set arcId to null.
-- ${ctx.incidentNumber <= 2 ? "This is the start of the shift — introduce the world before the threads surface." : ""}
+- ${ctx.incidentNumber === 1 ? "This is the opening incident — standalone. Can be any tone or scale, just don't reference arc threads yet." : ""}
 - ${ctx.incidentNumber >= ctx.incidentLimit - 3 ? "End of shift — threads should feel like they're reaching a point, not abruptly stopping." : ""}`;
   }
 

@@ -1,5 +1,5 @@
 import { Agent, run } from "@openai/agents";
-import { MODEL_FAST } from "./models.js";
+import { MODEL_FULL } from "./models.js";
 import { SessionArcOutputSchema, type SessionArcOutput } from "./schemas.js";
 
 export interface HeroBio {
@@ -42,6 +42,8 @@ PERSONAL ARC: Tied to a specific hero from the roster provided in the prompt. Us
 
 FACTION WAR: Two factions competing, and SDN keeps getting caught in the middle. Neither is fully wrong. Incidents are collateral damage.
 
+WEIGHTING: At least one arc per session should involve an active threat — a powered individual, organised faction, or escalating crisis that demands superhero-scale response. Not every session needs a classic villain, but not every session should be infrastructure problems and noise complaints either. Aim for variety across sessions but lean toward dramatic over mundane.
+
 OUTPUT NOTES:
 - incidentLimit: set based on arc complexity. 2 heavy arcs = ~18 incidents. 1 tight arc + 1 light thread = ~14. 1 short arc = ~12.
 - concept: be specific. Give the generator actual detail to work with — names, locations, tone, what each beat might look like. Don't be vague.
@@ -49,7 +51,7 @@ OUTPUT NOTES:
 - arcType: always set to the matching type from the list above.
 - linkedHeroAlias: set to the hero's alias for personal arcs, null for everything else.`,
   outputType: SessionArcOutputSchema,
-  model: MODEL_FAST,
+  model: MODEL_FULL,
 });
 
 export async function runSessionArcAgent(heroBios: HeroBio[]): Promise<SessionArcOutput> {
