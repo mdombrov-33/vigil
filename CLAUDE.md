@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-04-04 (roll reveal architecture, hero travelers)
+> Last updated: 2026-04-07 (personal arcs, interrupt UX, component refactor)
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -22,6 +22,7 @@ Web game where the player dispatches superheroes to incidents on a city map. A h
 | Observability | OpenAI Agents SDK built-in traces                       |
 | Deploy        | GCP (Cloud Run + Cloud SQL), Vercel (frontend)          |
 | Local dev     | Docker Compose                                          |
+| CORS          | `ALLOWED_ORIGINS` env var on backend (comma-separated list of allowed frontend URLs) |
 
 ---
 
@@ -117,8 +118,11 @@ Runs once per session start (in `handlers/sessions.ts`). Receives the full hero 
 Output: `{ arcs: ArcSeed[], incidentLimit: number, sessionMood: string }`
 
 - `sessionMood` — stored on sessions as `session_mood text`, passed to `IncidentGeneratorAgent` via `SessionContext` as overall tone context
-- Each `ArcSeed`: `{ id, name, concept, tone, targetBeats }` — `tone` is a freeform string (e.g. `"darkly comic"`, `"tense"`, `"bureaucratic nightmare"`), not an enum
-- Arc types: villain/antagonist, crisis chain, diplomatic/political, mystery/puzzle, absurd recurring, personal arc, faction war
+- Each `ArcSeed`: `{ id, name, concept, tone, targetBeats, arcType, linkedHeroAlias }` — `tone` is a freeform string (e.g. `"darkly comic"`, `"tense"`, `"bureaucratic nightmare"`), not an enum
+- `arcType` enum: `"villain" | "crisis" | "diplomatic" | "mystery" | "absurd" | "personal" | "faction"`
+- `linkedHeroAlias` — only set for `arcType === "personal"`, names the specific hero the arc centres on. Null for all other arc types.
+
+**Personal arc behavior:** when `arcType === "personal"`, `linkedHeroAlias` is resolved to a `topHeroId` and NarrativePickAgent is **skipped** — the linked hero always gets `topHeroId` for every incident in that arc. The agent prompt explicitly forbids placing that hero on-scene in generated incidents (they are the subject of the arc, not a responder). `linkedHeroAlias` is stored on each incident and included in the `incident:new` SSE payload so the frontend can highlight the linked hero in the roster when that incident's modal is open.
 
 ### IncidentGeneratorAgent
 
@@ -230,7 +234,7 @@ One persistent connection per session: `GET /api/v1/sse?sessionId=xxx`
 | `incident:active`            | After travel sleep                | `{ incidentId }`                                                                                                 |
 | `incident:expired`           | Expiry timer fires                | `{ incidentId }`                                                                                                 |
 | `incident:timer_extended`    | Session resume (per pending inc.) | `{ incidentId, expiresAt }` — new wall-clock expiry after backend extends timer                                  |
-| `mission:interrupt`          | Halfway through missionDuration   | `{ incidentId, missionId, topHeroId, heroIds, trigger, options }` (text only, no stats)                          |
+| `mission:interrupt`          | Halfway through missionDuration   | `{ incidentId, missionId, topHeroId, heroIds, trigger, interruptDurationMs, options }` (text only, no stats)     |
 | `mission:interrupt:resolved` | After player choice               | `{ incidentId, missionId, chosenOptionId, outcome, combinedValue, options }` (full options with stat info)       |
 | `mission:outcome`            | Mission pipeline complete         | `{ incidentId, missionId, title, heroes, evalScore, evalVerdict, evalPostOpNote, hasInterrupt, outcome? }` — `outcome` only present for interrupt missions |
 | `hero:state_update`          | After hero state changes          | `{ heroId, alias, availability, health, cooldownUntil }`                                                         |
@@ -336,6 +340,7 @@ Both emit `session:update` SSE with current `{ cityHealth, score }`.
 - `hints jsonb` — array of 1–3 field intel strings from TriageAgent
 - `interruptTrigger varchar(500)` — one-sentence dispatch-voice context for interrupt modal
 - `arcId varchar(10)` — which arc this incident advances (`arc_a`, `arc_b`) or null if standalone
+- `linkedHeroAlias varchar(100)` — set only for personal arc incidents; names the hero the arc is about
 
 **Missions table:**
 - `roll real` — random roll value [0,1] stored at mission end; only set for non-interrupt missions
@@ -389,7 +394,7 @@ Agent (backend) → MCPServerStreamableHttp → localhost:{PORT}/mcp → handler
 
 ## Hero Stats
 
-Defined in `frontend/src/lib/statMeta.ts` — single source of truth for keys, labels, abbreviations, colors, and lucide icons used everywhere stats are displayed.
+Defined in `frontend/src/config/statMeta.ts` — single source of truth for keys, labels, abbreviations, colors, and lucide icons used everywhere stats are displayed.
 
 | Stat     | Abbr | Color     | Icon    | Meaning                    |
 | -------- | ---- | --------- | ------- | -------------------------- |
@@ -445,19 +450,19 @@ Comic book aesthetic, dark theme.
 │                                      │  [CRT effect, amber] │
 ├──────────────────────────────────────┴──────────────────────┤
 │  ROSTER (hidden until shift starts)                          │
-│  [Ironwall]  [Static]  [Boom]  [Veil]  [Rex]  [Fracture]   │
+│  [Deal]  [Zenith]  [Fracture]  [Veil]  [Rex]  [Aegis] ...  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **Incident Modal:** single scrollable column — description at top, FIELD INTEL section (divider + hint bullets with danger-color `▸` markers) in the middle, hero slots + dispatch button at the bottom. Width: `max-w-xl`. Backdrop click or X closes. Single "Dispatch" button — no confirm step.
 
-**Interrupt Modal:** auto-opens when `mission:interrupt` SSE arrives (game pauses automatically). Shows `interruptState.trigger` sentence above "Select an approach" when not yet resolved. Single click on an option submits immediately — no confirm step. After choice: stat icons slide in on all options; chosen option shows a count-up roll animation (number climbs to combined value, then color shifts green/red). Auto-closes after 7 seconds. X button for early dismiss. If a second interrupt fires while one is pending, it queues — shown after the current one closes.
+**Interrupt Modal:** does **not** auto-open. When `mission:interrupt` SSE arrives the pin switches to ACT NOW state — player clicks it when ready. Opening the modal pauses the game; closing it (X) resumes without failing the mission. The interrupt timer (`interruptDurationMs`) is tracked in the store from `interruptCreatedAt` and shown as a thick countdown ring on the ACT NOW pin. Timer only expires if the player never opens the modal — auto-fail fires from the backend when `waitForChoice` times out. Shows `interruptState.trigger` sentence above "Select an approach" when not yet resolved. Single click on an option submits immediately — no confirm step. After choice: stat icons slide in on all options; chosen option shows a count-up roll animation (number climbs to combined value, then color shifts green/red). Auto-closes after 7 seconds. If a second interrupt fires while one is pending, it queues — shown after the current one closes.
 
 **Debrief Modal:** opens on pin click when incident is in `debriefing` state. Shows eval section labeled "DISPATCH ANALYSIS — hero selection vs. incident demands" (score + verdict), then hero field reports (tabbed if multiple heroes). Click backdrop or X to dismiss — no explicit confirm button.
 
 **Shift End Screen:** full-screen overlay when `sessionComplete || gameOver`. Shows SDN — SHIFT COMPLETE header, grade letter (96px), grade label, score, city HP, and "End Shift" button. framer-motion fade-in. Grade → `handleEndShift()` → back to `/shift`.
 
-**Hero Detail Modal:** portrait, stat bars with icons, bio, missionsCompleted/Failed, current status. Opens from roster (always) or from incident modal hero click. Pauses game while open.
+**Hero Detail Modal:** two-column layout — large portrait left (260px, with health badge + name/alias/labels pinned at bottom), right side has age/height, availability badge, bio text, Recharts `RadarChart` showing all 5 stats (amber zone, animated), stat value pills, and mission record. Opens from roster or incident modal hero click. Pauses game while open.
 
 **City health bar** — top of screen. Segmented bar. Below ~30% segments flicker.
 
@@ -552,28 +557,30 @@ app/
 components/
   game/
     GameLayout.tsx              # Header + map area + log panel + roster (roster hidden if !shiftStarted)
+    GameHeader.tsx              # Top HUD — branding, city health bar, score, volume, end shift button
     CityMap.tsx                 # Static image + IncidentPin per active incident + HeroTravelers
     HeroTravelers.tsx           # Hero portrait avatars animating from HQ to incident pins (en_route/active only)
-    IncidentPin.tsx             # Danger color, SVG countdown ring, ACT NOW pulse for interrupt
+    IncidentPin.tsx             # Danger color, SVG countdown ring, ACT NOW state for interrupt
     LogPanel.tsx                # CRT-wrapped SDN Comms log
     RosterBar.tsx               # Bottom strip of hero portraits
-    HeroPortrait.tsx            # Portrait + availability state + cooldown ring
-    CityHealthBar.tsx           # Segmented health bar in header
+    HeroPortrait.tsx            # Portrait + availability state + cooldown ring; linked prop for personal arc highlight
     StartScreen.tsx             # Overlay shown before shift starts
     ShiftEndScreen.tsx          # Overlay on session:complete or game:over — grade + stats
   modals/
     IncidentModal.tsx           # Incident briefing, field intel hints, hero slot drag targets, dispatch
-    InterruptModal.tsx          # Trigger sentence, interrupt options, stat roll animation, auto-close
+    InterruptModal.tsx          # Modal shell — trigger text, option list, auto-close after resolution
+    InterruptOptionRow.tsx      # OptionRow + StatRoll + StatBadge sub-components (extracted from InterruptModal)
     RollRevealModal.tsx         # Calls POST /roll on mount, radar chart + cursor animation, sets outcome in store
     DebriefModal.tsx            # Dispatch analysis eval, hero field reports; acknowledge fires on close
-    HeroDetailModal.tsx         # Hero profile with full-width portrait banner, stat bars, bio
+    HeroDetailModal.tsx         # Two-column: portrait left, radar chart + bio right
 hooks/
   useSSE.ts                     # EventSource → Zustand writes
   useSession.ts                 # TanStack Query for session state
   useHeroes.ts                  # TanStack Query for heroes list
+  useGameModals.ts              # All modal state + pause/resume + incident/hero/drag handlers
 stores/
   gameStore.ts
-lib/
+config/
   statMeta.ts                   # STAT_META + STAT_META_BY_KEY — icons, colors, labels for all 5 stats
   cityLocations.ts              # Fixed x/y % slot positions on map image
 types/
@@ -608,7 +615,7 @@ Pre-choice SSE sends text + `isHeroSpecific` only. Post-choice SSE (`mission:int
 | `incident:active` | Pin label updates from EN ROUTE → ON SCENE |
 | `incident:expired` | Pin removed from map |
 | `incident:timer_extended` | Updates `expiresAt` in store, then calls `clearPausedAt()` — ring unfreezes only after value is correct |
-| `mission:interrupt` | Interrupt modal auto-opens, game pauses, pin shows ACT NOW pulse |
+| `mission:interrupt` | Pin switches to ACT NOW state (red diamond + countdown ring); game does NOT auto-pause. Player clicks ACT NOW pin to open interrupt modal and pause. |
 | `mission:interrupt:resolved` | Stat icons slide in on all options; count-up roll on chosen option |
 | `mission:outcome` | For non-interrupt: pin shows ROLL + ▼ CLICK (roll reveal pending). For interrupt: pin shows DEBRIEF + ▼ CLICK directly. |
 | `hero:state_update` | Portrait updates state, cooldown ring starts if resting |
