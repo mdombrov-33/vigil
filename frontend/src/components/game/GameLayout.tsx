@@ -3,7 +3,7 @@
 import { CityMap } from "./CityMap";
 import { LogPanel } from "./LogPanel";
 import { RosterBar } from "./RosterBar";
-import { CityHealthBar } from "./CityHealthBar";
+import { GameHeader } from "./GameHeader";
 import { IncidentModal } from "@/components/modals/IncidentModal";
 import type { Hero, Incident } from "@/types/api";
 
@@ -44,7 +44,7 @@ export function GameLayout({
     <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ backgroundColor: "#08080f" }}>
       {/* Header */}
       <div className="h-10 shrink-0 border-b" style={{ borderColor: "#1e1e2e" }}>
-        <CityHealthBar shiftStarted={shiftStarted} onEndShift={onEndShift} volume={volume} onVolumeChange={onVolumeChange} />
+        <GameHeader shiftStarted={shiftStarted} onEndShift={onEndShift} volume={volume} onVolumeChange={onVolumeChange} />
       </div>
 
       {/* Map + Log */}

@@ -13,7 +13,7 @@ interface Props {
   onVolumeChange?: (v: number) => void;
 }
 
-export function CityHealthBar({ onEndShift, shiftStarted, volume, onVolumeChange }: Props) {
+export function GameHeader({ onEndShift, shiftStarted, volume, onVolumeChange }: Props) {
   const cityHealth = useGameStore((s) => s.cityHealth);
   const score = useGameStore((s) => s.score);
   const filledSegments = Math.round((cityHealth / 100) * SEGMENTS);
