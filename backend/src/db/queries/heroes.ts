@@ -9,12 +9,6 @@ export async function getHeroBios() {
   return db.select({ alias: heroes.alias, bio: heroes.bio }).from(heroes);
 }
 
-export async function getAvailableHeroes() {
-  return db
-    .select()
-    .from(heroes)
-    .where(and(eq(heroes.availability, "available"), ne(heroes.health, "down")));
-}
 
 export async function getAllNonDownHeroes() {
   return db.select().from(heroes).where(ne(heroes.health, "down"));

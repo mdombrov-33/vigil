@@ -5,10 +5,7 @@ import { runDispatcherAgent } from "../dispatcher.js";
 import { scoreHeroes } from "@/services/outcome.js";
 import { send, log } from "@/sse/manager.js";
 import { getSessionById } from "@/db/queries/sessions.js";
-import {
-  getAvailableHeroes,
-  getAllNonDownHeroes,
-} from "@/db/queries/heroes.js";
+import { getAllNonDownHeroes } from "@/db/queries/heroes.js";
 import {
   getSessionIncidentHistory,
   getArcIncidentHeroReports,
@@ -20,9 +17,8 @@ export async function runIncidentCreationPipeline(sessionId: string): Promise<st
   console.log("[incident-pipeline] starting");
   log(sessionId, "Analyzing incoming incident...");
 
-  const [session, availableHeroes, allHeroes] = await Promise.all([
+  const [session, allHeroes] = await Promise.all([
     getSessionById(sessionId),
-    getAvailableHeroes(),
     getAllNonDownHeroes(),
   ]);
 
@@ -97,7 +93,7 @@ export async function runIncidentCreationPipeline(sessionId: string): Promise<st
   ]);
   const narrativeHero = allHeroes.find((h) => h.id === narrativePick.heroId);
   console.log(
-    `[incident-pipeline] triage done — danger:${triage.dangerLevel} slots:${triage.slotCount} available heroes:${availableHeroes.length}`,
+    `[incident-pipeline] triage done — danger:${triage.dangerLevel} slots:${triage.slotCount} heroes:${allHeroes.length}`,
   );
   console.log(
     `[incident-pipeline] narrative top-1: ${narrativeHero?.alias ?? narrativePick.heroId}${linkedHero ? " (personal arc)" : ` — ${narrativePick.reasoning}`}`,
@@ -105,7 +101,7 @@ export async function runIncidentCreationPipeline(sessionId: string): Promise<st
   log(sessionId, `Triage complete — danger level ${triage.dangerLevel}/3, ${triage.slotCount} slot${triage.slotCount > 1 ? "s" : ""}`);
 
   const recommended = scoreHeroes(
-    availableHeroes,
+    allHeroes,
     triage.requiredStats as RequiredStats,
     triage.slotCount,
   );

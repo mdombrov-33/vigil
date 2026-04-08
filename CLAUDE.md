@@ -115,7 +115,7 @@ Session ID is internal plumbing — never shown to the user, just lives in the U
 | **ReflectionAgent**        | fast  | no  | Reviews hero report — rejects only for wrong voice, generic content, or outcome mismatch. Max 2 iterations.                   |
 | **EvalAgent**              | full  | yes | Calls `get_dispatch_recommendation`, compares to player dispatch, scores 0–10, outputs verdict + postOpNote.                  |
 
-**Two separate hero rankings:**
+**Two separate hero rankings, both using all non-down heroes:**
 
 - **Stat-based** (`scoreHeroes`) → dispatcher recommendation, eval grading
 - **Narrative-based** (`NarrativePickAgent`) → `topHeroId` on incident, unlocks hero-specific interrupt option
@@ -177,14 +177,14 @@ Receives `MissionContext`: `{ teammates: string[], isLead: boolean, interrupt?: 
 ### Incident Creation Pipeline (`runIncidentCreationPipeline`)
 
 ```
-1. Fetch session + availableHeroes + allNonDownHeroes   [parallel]
-     availableHeroes → scoreHeroes / DispatcherAgent (eval fairness — can't grade on unavailable heroes)
-     allNonDownHeroes → NarrativePickAgent + linkedHero lookup (narrative fit is availability-independent)
+1. Fetch session + allNonDownHeroes   [parallel]
+     allNonDownHeroes → scoreHeroes / DispatcherAgent / NarrativePickAgent / linkedHero lookup
+     (down heroes excluded; availability not considered — the "ideal" team is independent of current deployment)
 2. Fetch full incident history — all incidents with mission outcomes + eval data
 3. Fetch hero reports for arc incidents only (grouped by arcId)
 4. IncidentGeneratorAgent(SessionContext)    — builds arc-aware prompt with beat history
 5. TriageAgent + NarrativePickAgent          [parallel]
-6. scoreHeroes(availableHeroes) — deterministic stat ranking  [pure code]
+6. scoreHeroes(allNonDownHeroes) — deterministic stat ranking  [pure code]
 7. INSERT incident (with hints, interruptTrigger, arcId) → db/queries/incidents
 8. Increment session.incidentCount atomically
 9. DispatcherAgent → save_dispatch_recommendation (MCP)
