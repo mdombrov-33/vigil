@@ -1,14 +1,5 @@
+# dependencies
 **/node_modules/
-**/dist/
-**/.env
-*.env.local
-
-# Terraform
-**/.terraform/
-*.tfstate
-*.tfstate.backup
-*.tfvars
-
 /.pnp
 .pnp.*
 .yarn/*
@@ -17,16 +8,28 @@
 !.yarn/releases
 !.yarn/versions
 
-# next.js
-/.next/
-/out/
+# builds & output
+**/dist/
+**/.next/
+**/out/
+**/build/
 
-# production
-/build
+# testing
+**/coverage/
+
+# env files
+**/.env*
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
 
 # misc
 .DS_Store
 *.pem
+ideas.txt
 
 # debug
 npm-debug.log*
@@ -40,5 +43,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-ideas.txt
