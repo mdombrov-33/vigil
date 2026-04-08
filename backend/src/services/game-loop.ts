@@ -1,8 +1,17 @@
-import { db, incidents, sessions } from "@/db/index.js";
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import { getActiveSessions, send, log } from "@/sse/manager.js";
 import { dockCityHealth } from "@/services/city-health.js";
 import { runIncidentCreationPipeline } from "@/agents/pipelines/incident.js";
+import {
+  getExpiredPendingIncidents,
+  markIncidentsExpired,
+  getActiveIncidentCount,
+  getUnresolvedIncidentIds,
+} from "@/db/queries/incidents.js";
+import {
+  getSessionSpawnState,
+  incrementIncidentCount,
+  endSession,
+} from "@/db/queries/sessions.js";
 
 const MAX_ACTIVE_INCIDENTS = 4;
 const SPAWN_INTERVAL_MS = 45_000 + Math.random() * 15_000; // used only for initial lastSpawn offset
@@ -21,7 +30,7 @@ function completeSession(sessionId: string, finalScore: number) {
   lastSpawn.delete(sessionId);
   pausedSessions.delete(sessionId);
   send(sessionId, "session:complete", { finalScore });
-  db.update(sessions).set({ endedAt: new Date() }).where(eq(sessions.id, sessionId)).catch(() => {});
+  endSession(sessionId).catch(() => {});
   console.log(`[game-loop] session ${sessionId} complete — score: ${finalScore}`);
 }
 
@@ -34,11 +43,9 @@ export function registerSession(sessionId: string) {
 
 export function startIncidentScheduler() {
   console.log(`[incident-scheduler] started`);
-
   setInterval(async () => {
     const activeSessions = getActiveSessions();
     if (activeSessions.length === 0) return;
-
     await Promise.all(activeSessions.map(runLoopTick));
   }, 5_000);
 }
@@ -51,30 +58,10 @@ async function runLoopTick(sessionId: string) {
 
 async function checkExpiry(sessionId: string) {
   const now = new Date();
-
-  const expired = await db
-    .select()
-    .from(incidents)
-    .where(
-      and(
-        eq(incidents.sessionId, sessionId),
-        eq(incidents.status, "pending"),
-        lt(incidents.expiresAt, now),
-      ),
-    );
-
+  const expired = await getExpiredPendingIncidents(sessionId, now);
   if (expired.length === 0) return;
 
-  await db
-    .update(incidents)
-    .set({ status: "expired" })
-    .where(
-      and(
-        eq(incidents.sessionId, sessionId),
-        eq(incidents.status, "pending"),
-        lt(incidents.expiresAt, now),
-      ),
-    );
+  await markIncidentsExpired(sessionId, now);
 
   for (const incident of expired) {
     console.log(`[game-loop] incident expired: ${incident.title}`);
@@ -85,29 +72,14 @@ async function checkExpiry(sessionId: string) {
 }
 
 async function checkSpawn(sessionId: string) {
-  // Fetch current session state
-  const [session] = await db
-    .select({ incidentCount: sessions.incidentCount, incidentLimit: sessions.incidentLimit, score: sessions.score })
-    .from(sessions)
-    .where(eq(sessions.id, sessionId))
-    .limit(1);
-
+  const session = await getSessionSpawnState(sessionId);
   if (!session) return;
 
   const limit = session.incidentLimit ?? 15;
 
   // Session limit reached — check if all incidents have cleared (session complete)
   if (session.incidentCount >= limit) {
-    const stillActive = await db
-      .select({ id: incidents.id })
-      .from(incidents)
-      .where(
-        and(
-          eq(incidents.sessionId, sessionId),
-          inArray(incidents.status, ["pending", "en_route", "active", "debriefing"]),
-        ),
-      );
-
+    const stillActive = await getUnresolvedIncidentIds(sessionId);
     if (stillActive.length === 0) {
       completeSession(sessionId, session.score);
     }
@@ -118,31 +90,17 @@ async function checkSpawn(sessionId: string) {
   const now = Date.now();
   const last = lastSpawn.get(sessionId) ?? 0;
   const spawnInterval = 45_000 + Math.random() * 15_000;
-
   if (now - last < spawnInterval) return;
 
   // Don't pile on beyond the active cap
-  const active = await db
-    .select({ id: incidents.id })
-    .from(incidents)
-    .where(
-      and(
-        eq(incidents.sessionId, sessionId),
-        inArray(incidents.status, ["pending", "en_route", "active"]),
-      ),
-    );
-
-  if (active.length >= MAX_ACTIVE_INCIDENTS) {
-    console.log(`[game-loop] skipping spawn for ${sessionId} — ${active.length} active incidents`);
+  const activeCount = await getActiveIncidentCount(sessionId);
+  if (activeCount >= MAX_ACTIVE_INCIDENTS) {
+    console.log(`[game-loop] skipping spawn for ${sessionId} — ${activeCount} active incidents`);
     return;
   }
 
   // Increment count atomically before spawning
-  await db
-    .update(sessions)
-    .set({ incidentCount: sql`${sessions.incidentCount} + 1` })
-    .where(eq(sessions.id, sessionId));
-
+  await incrementIncidentCount(sessionId);
   lastSpawn.set(sessionId, now);
   console.log(`[game-loop] spawning incident ${session.incidentCount + 1}/${limit} for session ${sessionId}`);
 

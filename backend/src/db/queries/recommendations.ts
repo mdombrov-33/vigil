@@ -6,11 +6,7 @@ export async function saveDispatchRecommendation(
   recommendedHeroIds: string[],
   reasoning: string,
 ) {
-  await db.insert(dispatchRecommendations).values({
-    incidentId,
-    recommendedHeroIds,
-    reasoning,
-  });
+  await db.insert(dispatchRecommendations).values({ incidentId, recommendedHeroIds, reasoning });
 }
 
 export async function getDispatchRecommendation(incidentId: string) {

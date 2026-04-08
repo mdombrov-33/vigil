@@ -1,6 +1,6 @@
 # Vigil — Incident Dispatcher
 
-> Last updated: 2026-04-07 (personal arcs, interrupt UX, component refactor)
+> Last updated: 2026-04-08 (db query layer, pipeline split, MCP cleanup)
 
 Web game where the player dispatches superheroes to incidents on a city map. A hidden multi-agent system analyzes each incident and forms its own recommendation — revealed only after the player dispatches.
 
@@ -32,15 +32,24 @@ Web game where the player dispatches superheroes to incidents on a city map. A h
 vigil/
 ├── backend/
 │   └── src/
-│       ├── agents/                # One file per agent + pipeline.ts + mcp.ts + models.ts + schemas.ts
+│       ├── agents/                # One file per agent + mcp.ts + models.ts + schemas.ts
+│       │   └── pipelines/         # Pipeline orchestrators (not agents themselves)
+│       │       ├── incident.ts    # runIncidentCreationPipeline
+│       │       └── mission.ts     # runMissionPipeline
 │       ├── api/v1/
 │       │   ├── routes/            # Thin Express routers only
 │       │   └── handlers/          # Business logic called by routes
-│       ├── db/                    # Schema, enums, client, migrations, seed
+│       ├── db/                    # Schema, enums, client, migrations, seed, query layer
 │       │   ├── schema.ts
 │       │   ├── enums.ts
 │       │   ├── client.ts
 │       │   ├── index.ts
+│       │   ├── queries/           # Named query functions — single source of truth for all DB access
+│       │   │   ├── heroes.ts
+│       │   │   ├── sessions.ts
+│       │   │   ├── incidents.ts
+│       │   │   ├── missions.ts
+│       │   │   └── recommendations.ts
 │       │   ├── migrations/
 │       │   └── seed/
 │       │       ├── heroes/        # One file per hero (alias as filename)
@@ -48,8 +57,7 @@ vigil/
 │       │       └── index.ts
 │       ├── mcp/                   # MCP server mounted at /mcp — McpServer created per-request
 │       │   ├── router.ts          # Express router wiring
-│       │   ├── tools/             # One file per MCP tool
-│       │   └── handlers/          # DB logic called by tools
+│       │   └── tools/             # One file per MCP tool (3 active tools)
 │       ├── services/              # Pure logic — outcome, cooldowns, scoring, city health, schedulers
 │       ├── sse/                   # SSE manager (connection registry + send/broadcast)
 │       ├── tracing.ts
@@ -74,10 +82,11 @@ vigil/
 
 **Layering rules:**
 
-- `route → handler → service / db` — routes are thin wiring only
-- Services are pure logic — no DB calls except `city-health.ts` and `game-loop.ts` which coordinate cross-cutting concerns
-- Agents are orchestrated by `pipeline.ts` — no agent calls another agent directly
-- MCP: `router → tool → handler → db` — tools never touch DB directly
+- `route → handler → db/queries` — routes are thin wiring only; handlers call named query functions, never raw Drizzle
+- `db/queries/` is the single source of truth for all DB access — used by handlers, services, and pipelines alike
+- Services (`city-health.ts`, `game-loop.ts`, `cooldown-resolver.ts`) call `db/queries/` for DB operations; pure logic stays in `outcome.ts`, `cooldown.ts`, `interrupt-gate.ts`
+- Pipelines (`agents/pipelines/`) orchestrate agents — no agent calls another agent directly
+- MCP: `router → tool → db/queries` — tools call query functions directly, no intermediate handler layer
 
 ---
 
@@ -97,10 +106,10 @@ Session ID is internal plumbing — never shown to the user, just lives in the U
 
 | Agent                      | Model | MCP | Role                                                                                                                          |
 | -------------------------- | ----- | --- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **SessionArcAgent**        | fast  | no  | Generates 1–2 narrative arc seeds + incident limit for a new session. Runs once at session start.                             |
+| **SessionArcAgent**        | full  | no  | Generates 1–2 narrative arc seeds + incident limit for a new session. Runs once at session start.                             |
 | **IncidentGeneratorAgent** | fast  | no  | Generates incident title + description + arcId. Receives full session history + arc beat context (hero reports, eval) for narrative continuity.  |
 | **TriageAgent**            | fast  | no  | Extracts required stats (1–3 only), slot count, danger level, timing, interrupt options, hints[], interruptTrigger.           |
-| **NarrativePickAgent**     | full  | no  | Picks `topHeroId` based on hero bio/powers/character fit — not stats. Used for interrupt hero-specific option.                |
+| **NarrativePickAgent**     | full  | no  | Picks `topHeroId` based on hero bio/powers/character fit — not stats. Receives full non-down roster (not just available) — narrative fit is independent of availability. Used for interrupt hero-specific option. |
 | **DispatcherAgent**        | fast  | yes | Stores hidden stat-based recommendation via `save_dispatch_recommendation`.                                                   |
 | **HeroReportAgent**        | full  | yes | One instance per hero, personality as system prompt. Calls `get_hero_mission_history`, writes 3-sentence first-person report. Receives MissionContext (teammates, isLead, interrupt). |
 | **ReflectionAgent**        | fast  | no  | Reviews hero report — rejects only for wrong voice, generic content, or outcome mismatch. Max 2 iterations.                   |
@@ -168,15 +177,17 @@ Receives `MissionContext`: `{ teammates: string[], isLead: boolean, interrupt?: 
 ### Incident Creation Pipeline (`runIncidentCreationPipeline`)
 
 ```
-1. Fetch session (arcSeeds, sessionMood, incidentCount, incidentLimit) + available heroes   [parallel]
+1. Fetch session + availableHeroes + allNonDownHeroes   [parallel]
+     availableHeroes → scoreHeroes / DispatcherAgent (eval fairness — can't grade on unavailable heroes)
+     allNonDownHeroes → NarrativePickAgent + linkedHero lookup (narrative fit is availability-independent)
 2. Fetch full incident history — all incidents with mission outcomes + eval data
 3. Fetch hero reports for arc incidents only (grouped by arcId)
 4. IncidentGeneratorAgent(SessionContext)    — builds arc-aware prompt with beat history
 5. TriageAgent + NarrativePickAgent          [parallel]
-6. scoreHeroes() — deterministic stat ranking  [pure code]
-7. INSERT incident (with hints, interruptTrigger, arcId) → DB
+6. scoreHeroes(availableHeroes) — deterministic stat ranking  [pure code]
+7. INSERT incident (with hints, interruptTrigger, arcId) → db/queries/incidents
 8. Increment session.incidentCount atomically
-9. DispatcherAgent → save_dispatch_recommendation
+9. DispatcherAgent → save_dispatch_recommendation (MCP)
 10. SSE: incident:new (with hints[]) → pin appears on map
 ```
 
@@ -355,18 +366,16 @@ Both emit `session:update` SSE with current `{ cityHealth, score }`.
 Mounted on `/mcp` inside the backend process (`src/mcp/router.ts`). **Critical:** `McpServer` instance is created fresh per request (not shared) — sharing caused "Already connected to transport" errors.
 
 ```
-Agent (backend) → MCPServerStreamableHttp → localhost:{PORT}/mcp → handler → Drizzle → Postgres
+Agent (backend) → MCPServerStreamableHttp → localhost:{PORT}/mcp → db/queries → Postgres
 ```
 
-| Tool                           | Handler                       |
-| ------------------------------ | ----------------------------- |
-| `get_available_heroes`         | `handlers/heroes.ts`          |
-| `get_hero_profile`             | `handlers/heroes.ts`          |
-| `get_hero_mission_history`     | `handlers/heroes.ts`          |
-| `update_hero_state`            | `handlers/heroes.ts`          |
-| `save_mission_report`          | `handlers/missions.ts`        |
-| `save_dispatch_recommendation` | `handlers/recommendations.ts` |
-| `get_dispatch_recommendation`  | `handlers/recommendations.ts` |
+MCP tools are only for data an agent needs to **discover dynamically mid-run**. Data known at pipeline start is injected into the prompt directly. Tools call `db/queries/` functions — there is no intermediate handler layer.
+
+| Tool                           | Query file                      | Used by           |
+| ------------------------------ | ------------------------------- | ----------------- |
+| `get_hero_mission_history`     | `db/queries/heroes.ts`          | HeroReportAgent   |
+| `save_dispatch_recommendation` | `db/queries/recommendations.ts` | DispatcherAgent   |
+| `get_dispatch_recommendation`  | `db/queries/recommendations.ts` | EvalAgent         |
 
 ---
 

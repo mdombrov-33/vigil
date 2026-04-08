@@ -1,11 +1,23 @@
-import { db, heroes, incidents, missions, missionHeroes, sessions } from "@/db/index.js";
-import { and, eq, inArray, sql } from "drizzle-orm";
 import { runHeroReportAgent, type MissionContext } from "../hero-report.js";
 import { runReflectionAgent } from "../reflection.js";
 import { runEvalAgent } from "../eval.js";
 import { getMissionOutcome, getInterruptOutcome, combineStats, type InterruptOption } from "@/services/outcome.js";
 import { send, log } from "@/sse/manager.js";
 import { waitForChoice } from "@/services/interrupt-gate.js";
+import { getSessionById } from "@/db/queries/sessions.js";
+import { getIncidentById, setIncidentStatus } from "@/db/queries/incidents.js";
+import {
+  getHeroesByIds,
+  incrementMissionCounters,
+} from "@/db/queries/heroes.js";
+import {
+  createMission,
+  createMissionHeroes,
+  storeMissionRoll,
+  completeMission,
+  storeMissionEval,
+  saveMissionHeroReport,
+} from "@/db/queries/missions.js";
 import type { RequiredStats } from "@/types";
 
 const TRAVEL_TIME_MS = 12_000;
@@ -14,31 +26,23 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function runMissionPipeline(incidentId: string, heroIds: string[]): Promise<void> {
   console.log(`[mission-pipeline] starting — incident:${incidentId} heroes:${heroIds.join(", ")}`);
 
-  const [incidentRows, dispatchedHeroes] = await Promise.all([
-    db.select().from(incidents).where(eq(incidents.id, incidentId)).limit(1),
-    db.select().from(heroes).where(inArray(heroes.id, heroIds)),
+  const [incident, dispatchedHeroes] = await Promise.all([
+    getIncidentById(incidentId),
+    getHeroesByIds(heroIds),
   ]);
 
-  const incident = incidentRows[0];
   if (!incident) throw new Error(`Incident ${incidentId} not found`);
 
   const sessionId = incident.sessionId;
-
-  const [mission] = await db
-    .insert(missions)
-    .values({ incidentId })
-    .returning();
-
-  await db
-    .insert(missionHeroes)
-    .values(heroIds.map((heroId) => ({ missionId: mission.id, heroId })));
+  const mission = await createMission(incidentId);
+  await createMissionHeroes(mission.id, heroIds);
 
   console.log(`[mission-pipeline] mission created: ${mission.id}`);
   log(sessionId, `${dispatchedHeroes.map((h) => h.alias).join(" + ")} en route to: ${incident.title}`);
 
   // Travel to incident
   await sleep(TRAVEL_TIME_MS);
-  await db.update(incidents).set({ status: "active" }).where(eq(incidents.id, incidentId));
+  await setIncidentStatus(incidentId, "active");
   send(sessionId, "incident:active", { incidentId });
   log(sessionId, `${dispatchedHeroes.map((h) => h.alias).join(" + ")} on scene`);
 
@@ -97,25 +101,13 @@ export async function runMissionPipeline(incidentId: string, heroIds: string[]):
     const result = getMissionOutcome(dispatchedHeroes, incident.requiredStats as RequiredStats);
     outcome = result.outcome;
     // Store roll + dispatchedStats in DB — revealed to player when they click the ROLL pin
-    await db
-      .update(missions)
-      .set({ roll: result.roll, dispatchedStats: result.dispatchedStats })
-      .where(eq(missions.id, mission.id));
+    await storeMissionRoll(mission.id, result.roll, result.dispatchedStats);
   }
   console.log(`[mission-pipeline] outcome: ${outcome}`);
 
   await Promise.all([
-    db.update(incidents).set({ status: "debriefing" }).where(eq(incidents.id, incidentId)),
-    db.update(heroes)
-      .set({
-        missionsCompleted: outcome === "success"
-          ? sql`${heroes.missionsCompleted} + 1`
-          : heroes.missionsCompleted,
-        missionsFailed: outcome === "failure"
-          ? sql`${heroes.missionsFailed} + 1`
-          : heroes.missionsFailed,
-      })
-      .where(inArray(heroes.id, heroIds)),
+    setIncidentStatus(incidentId, "debriefing"),
+    incrementMissionCounters(heroIds, outcome),
   ]);
 
   console.log(`[mission-pipeline] generating reports for: ${dispatchedHeroes.map((h) => h.alias).join(", ")}`);
@@ -123,8 +115,8 @@ export async function runMissionPipeline(incidentId: string, heroIds: string[]):
   // Resolve arc name for this incident if it belongs to an arc
   let arcName: string | undefined;
   if (incident.arcId) {
-    const sessionArcRow = await db.select({ arcSeeds: sessions.arcSeeds }).from(sessions).where(eq(sessions.id, sessionId)).limit(1);
-    const arcSeeds = (sessionArcRow[0]?.arcSeeds as { id: string; name: string }[] | null) ?? [];
+    const session = await getSessionById(sessionId);
+    const arcSeeds = (session?.arcSeeds as { id: string; name: string }[] | null) ?? [];
     arcName = arcSeeds.find((a) => a.id === incident.arcId)?.name;
   }
 
@@ -149,34 +141,23 @@ export async function runMissionPipeline(incidentId: string, heroIds: string[]):
 
   await Promise.all(
     polishedReports.map((report, i) =>
-      db
-        .update(missionHeroes)
-        .set({ report })
-        .where(and(
-          eq(missionHeroes.missionId, mission.id),
-          eq(missionHeroes.heroId, dispatchedHeroes[i].id),
-        )),
+      saveMissionHeroReport(mission.id, dispatchedHeroes[i].id, report),
     ),
   );
 
-  await db
-    .update(missions)
-    .set({ outcome, completedAt: new Date() })
-    .where(eq(missions.id, mission.id));
+  await completeMission(mission.id, outcome);
 
   console.log(`[mission-pipeline] running eval`);
   const evalResult = await runEvalAgent(incidentId, dispatchedHeroes);
   console.log(`[mission-pipeline] eval: ${evalResult.verdict} ${evalResult.score}/10`);
 
-  await db
-    .update(missions)
-    .set({
-      evalScore: Math.round(evalResult.score),
-      evalVerdict: evalResult.verdict,
-      evalExplanation: evalResult.explanation,
-      evalPostOpNote: evalResult.postOpNote,
-    })
-    .where(eq(missions.id, mission.id));
+  await storeMissionEval(
+    mission.id,
+    Math.round(evalResult.score),
+    evalResult.verdict,
+    evalResult.explanation,
+    evalResult.postOpNote,
+  );
 
   // For non-interrupt missions: outcome intentionally omitted — player reveals via ROLL pin.
   // For interrupt missions: outcome included since it was already shown in the interrupt modal.

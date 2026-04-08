@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getDispatchRecommendation } from "../handlers/recommendations.js";
+import { getDispatchRecommendation } from "@/db/queries/recommendations.js";
 
 export function registerGetDispatchRecommendation(server: McpServer) {
   server.registerTool(

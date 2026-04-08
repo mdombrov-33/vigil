@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { createSession, getSession, startSession, pauseGameSession, resumeGameSession } from "@/api/v1/handlers/sessions";
+import { createSessionHandler, getSession, startSession, pauseGameSession, resumeGameSession } from "@/api/v1/handlers/sessions";
 
 export const sessionsRouter = Router();
 
-sessionsRouter.post("/", createSession);
+sessionsRouter.post("/", createSessionHandler);
 sessionsRouter.get("/:id", getSession);
 sessionsRouter.post("/:id/start", startSession);
 sessionsRouter.post("/:id/pause", pauseGameSession);

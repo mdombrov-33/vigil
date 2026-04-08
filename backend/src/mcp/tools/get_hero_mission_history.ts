@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getHeroMissionHistory } from "../handlers/heroes.js";
+import { getHeroMissionHistory } from "@/db/queries/heroes.js";
 
 export function registerGetHeroMissionHistory(server: McpServer) {
   server.registerTool(

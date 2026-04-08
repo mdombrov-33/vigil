@@ -1,6 +1,4 @@
 import { Request, Response } from "express";
-import { db, heroes, incidents, missions, missionHeroes } from "@/db/index.js";
-import { and, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { sendJson } from "@/utils/response";
 import { runIncidentCreationPipeline } from "@/agents/pipelines/incident.js";
 import { runMissionPipeline } from "@/agents/pipelines/mission.js";
@@ -9,9 +7,24 @@ import { send } from "@/sse/manager.js";
 import { dockCityHealth, addScore } from "@/services/city-health.js";
 import { getCooldownUntil, rollHealthAfterFailure } from "@/services/cooldown.js";
 import type { InterruptOption } from "@/services/outcome";
+import {
+  getActiveSessionIncidents,
+  getIncidentById,
+  setIncidentStatus,
+} from "@/db/queries/incidents.js";
+import {
+  getAvailableHeroesByIds,
+  setHeroesOnMission,
+  setHeroResting,
+} from "@/db/queries/heroes.js";
+import {
+  getActiveMission,
+  getCompletedMission,
+  getMissionHeroReports,
+  getMissionDispatchedHeroes,
+} from "@/db/queries/missions.js";
 
 // GET /api/v1/incidents?sessionId=xxx
-// Returns active incidents for the map — pending, en_route, active only.
 export async function getActiveIncidents(req: Request, res: Response) {
   const sessionId = req.query.sessionId as string;
   if (!sessionId) {
@@ -19,15 +32,7 @@ export async function getActiveIncidents(req: Request, res: Response) {
     return;
   }
 
-  const rows = await db
-    .select()
-    .from(incidents)
-    .where(
-      and(
-        eq(incidents.sessionId, sessionId),
-        inArray(incidents.status, ["pending", "en_route", "active", "debriefing"]),
-      ),
-    );
+  const rows = await getActiveSessionIncidents(sessionId);
 
   const mapped = rows.map((i) => ({
     incidentId: i.id,
@@ -47,11 +52,7 @@ export async function getActiveIncidents(req: Request, res: Response) {
 
 // GET /api/v1/incidents/:id
 export async function getIncident(req: Request, res: Response) {
-  const [incident] = await db
-    .select()
-    .from(incidents)
-    .where(eq(incidents.id, req.params.id as string))
-    .limit(1);
+  const incident = await getIncidentById(req.params.id as string);
 
   if (!incident) {
     sendJson(res, 404, { error: "Incident not found" });
@@ -80,8 +81,6 @@ export async function getIncident(req: Request, res: Response) {
 }
 
 // POST /api/v1/incidents/generate
-// Runs the full incident creation pipeline — generator + triage + dispatcher.
-// Awaited before returning so the pin appears analysis-complete.
 export async function generateIncident(req: Request, res: Response) {
   const { sessionId } = req.body;
   if (!sessionId) {
@@ -94,7 +93,6 @@ export async function generateIncident(req: Request, res: Response) {
 }
 
 // POST /api/v1/incidents/:id/dispatch
-// Player dispatches heroes. Heroes lock immediately, pipeline runs in background.
 export async function dispatchHeroes(req: Request, res: Response) {
   const incidentId = req.params.id as string;
   const { heroIds } = req.body as { heroIds: string[] };
@@ -104,12 +102,7 @@ export async function dispatchHeroes(req: Request, res: Response) {
     return;
   }
 
-  // Validate incident exists and is still pending
-  const [incident] = await db
-    .select()
-    .from(incidents)
-    .where(eq(incidents.id, incidentId))
-    .limit(1);
+  const incident = await getIncidentById(incidentId);
 
   if (!incident) {
     sendJson(res, 404, { error: "Incident not found" });
@@ -120,44 +113,24 @@ export async function dispatchHeroes(req: Request, res: Response) {
     return;
   }
   if (heroIds.length > incident.slotCount) {
-    sendJson(res, 400, {
-      error: `Too many heroes — incident has ${incident.slotCount} slots`,
-    });
+    sendJson(res, 400, { error: `Too many heroes — incident has ${incident.slotCount} slots` });
     return;
   }
 
   // Validate all heroes are available
-  const dispatchedHeroes = await db
-    .select()
-    .from(heroes)
-    .where(
-      and(
-        inArray(heroes.id, heroIds),
-        eq(heroes.availability, "available"),
-        ne(heroes.health, "down"),
-      ),
-    );
+  const dispatchedHeroes = await getAvailableHeroesByIds(heroIds);
 
   if (dispatchedHeroes.length !== heroIds.length) {
-    sendJson(res, 409, {
-      error: "One or more heroes are unavailable",
-    });
+    sendJson(res, 409, { error: "One or more heroes are unavailable" });
     return;
   }
 
   // Lock heroes and update incident status immediately
   await Promise.all([
-    db
-      .update(heroes)
-      .set({ availability: "on_mission" })
-      .where(inArray(heroes.id, heroIds)),
-    db
-      .update(incidents)
-      .set({ status: "en_route" })
-      .where(eq(incidents.id, incidentId)),
+    setHeroesOnMission(heroIds),
+    setIncidentStatus(incidentId, "en_route"),
   ]);
 
-  // Notify frontend immediately — don't wait for pipeline
   const sessionId = incident.sessionId;
   for (const hero of dispatchedHeroes) {
     send(sessionId, "hero:state_update", {
@@ -182,7 +155,6 @@ export async function dispatchHeroes(req: Request, res: Response) {
 }
 
 // POST /api/v1/incidents/:id/interrupt
-// Player submits their interrupt choice.
 export async function submitInterruptChoice(req: Request, res: Response) {
   const incidentId = req.params.id as string;
   const { choiceId } = req.body as { choiceId: string };
@@ -192,22 +164,14 @@ export async function submitInterruptChoice(req: Request, res: Response) {
     return;
   }
 
-  // Fetch incident to validate the choice
-  const [incident] = await db
-    .select()
-    .from(incidents)
-    .where(eq(incidents.id, incidentId))
-    .limit(1);
+  const incident = await getIncidentById(incidentId);
 
   if (!incident) {
     sendJson(res, 404, { error: "Incident not found" });
     return;
   }
-
   if (incident.status !== "active") {
-    sendJson(res, 409, {
-      error: "Incident is not in an active interrupt state",
-    });
+    sendJson(res, 409, { error: "Incident is not in an active interrupt state" });
     return;
   }
 
@@ -221,39 +185,17 @@ export async function submitInterruptChoice(req: Request, res: Response) {
 
   // Reject if player tries to submit hero-specific option without the top hero
   if (chosen.isHeroSpecific) {
-    const [mission] = await db
-      .select()
-      .from(missions)
-      .where(
-        and(eq(missions.incidentId, incidentId), isNull(missions.completedAt)),
-      )
-      .limit(1);
-
-    if (mission) {
-      const heroRows = await db
-        .select({ heroId: missions.incidentId })
-        .from(missions)
-        .where(eq(missions.id, mission.id));
-
-      const topHeroDispatched = heroRows.some(() => incident.topHeroId);
-
+    const activeMission = await getActiveMission(incidentId);
+    if (activeMission) {
+      const topHeroDispatched = incident.topHeroId != null;
       if (!topHeroDispatched) {
-        sendJson(res, 400, {
-          error: "Top hero was not dispatched — this option is unavailable",
-        });
+        sendJson(res, 400, { error: "Top hero was not dispatched — this option is unavailable" });
         return;
       }
     }
   }
 
-  // Find the active mission to resolve the gate
-  const [activeMission] = await db
-    .select()
-    .from(missions)
-    .where(
-      and(eq(missions.incidentId, incidentId), isNull(missions.completedAt)),
-    )
-    .limit(1);
+  const activeMission = await getActiveMission(incidentId);
 
   if (!activeMission) {
     sendJson(res, 404, { error: "No active mission found for this incident" });
@@ -270,45 +212,24 @@ export async function submitInterruptChoice(req: Request, res: Response) {
 }
 
 // GET /api/v1/incidents/:id/debrief
-// Returns mission outcome + per-hero reports for the debrief modal.
 export async function getDebrief(req: Request, res: Response) {
   const incidentId = req.params.id as string;
 
-  const [incident] = await db
-    .select()
-    .from(incidents)
-    .where(eq(incidents.id, incidentId))
-    .limit(1);
+  const incident = await getIncidentById(incidentId);
 
   if (!incident) {
     sendJson(res, 404, { error: "Incident not found" });
     return;
   }
 
-  // Find the most recently completed mission for this incident
-  const [mission] = await db
-    .select()
-    .from(missions)
-    .where(and(eq(missions.incidentId, incidentId), isNotNull(missions.completedAt)))
-    .orderBy(desc(missions.completedAt))
-    .limit(1);
+  const mission = await getCompletedMission(incidentId);
 
   if (!mission) {
     sendJson(res, 404, { error: "No completed mission found" });
     return;
   }
 
-  // Fetch per-hero reports joined with hero profile
-  const heroRows = await db
-    .select({
-      heroId: heroes.id,
-      alias: heroes.alias,
-      portraitUrl: heroes.portraitUrl,
-      report: missionHeroes.report,
-    })
-    .from(missionHeroes)
-    .innerJoin(heroes, eq(missionHeroes.heroId, heroes.id))
-    .where(eq(missionHeroes.missionId, mission.id));
+  const heroRows = await getMissionHeroReports(mission.id);
 
   sendJson(res, 200, {
     incidentId: incident.id,
@@ -322,38 +243,25 @@ export async function getDebrief(req: Request, res: Response) {
 }
 
 // POST /api/v1/incidents/:id/roll
-// Player clicks the ROLL pin — returns pre-computed outcome data stored in DB.
-// No side effects; all consequences (score, health, hero resting) are applied at acknowledge time.
 export async function rollMission(req: Request, res: Response) {
   const incidentId = req.params.id as string;
 
-  const [incident] = await db
-    .select()
-    .from(incidents)
-    .where(eq(incidents.id, incidentId))
-    .limit(1);
+  const incident = await getIncidentById(incidentId);
 
   if (!incident) {
     sendJson(res, 404, { error: "Incident not found" });
     return;
   }
-
   if (incident.status !== "debriefing") {
     sendJson(res, 409, { error: "Incident is not in debriefing state" });
     return;
   }
-
   if (incident.hasInterrupt) {
     sendJson(res, 400, { error: "Interrupt missions do not use the roll endpoint" });
     return;
   }
 
-  const [mission] = await db
-    .select()
-    .from(missions)
-    .where(and(eq(missions.incidentId, incidentId), isNotNull(missions.completedAt)))
-    .orderBy(desc(missions.completedAt))
-    .limit(1);
+  const mission = await getCompletedMission(incidentId);
 
   if (!mission) {
     sendJson(res, 404, { error: "No completed mission found" });
@@ -369,56 +277,33 @@ export async function rollMission(req: Request, res: Response) {
 }
 
 // POST /api/v1/incidents/:id/acknowledge
-// Player has read the debrief — apply all mission consequences and complete the incident.
-// This is the commit point: score/health + hero resting happen here, not in the pipeline.
 export async function acknowledgeDebrief(req: Request, res: Response) {
   const incidentId = req.params.id as string;
 
-  const [incident] = await db
-    .select()
-    .from(incidents)
-    .where(eq(incidents.id, incidentId))
-    .limit(1);
+  const incident = await getIncidentById(incidentId);
 
   if (!incident) {
     sendJson(res, 404, { error: "Incident not found" });
     return;
   }
-
   if (incident.status !== "debriefing") {
     sendJson(res, 409, { error: "Incident is not awaiting debrief acknowledgement" });
     return;
   }
 
-  // Find the completed mission
-  const [mission] = await db
-    .select()
-    .from(missions)
-    .where(and(eq(missions.incidentId, incidentId), isNotNull(missions.completedAt)))
-    .orderBy(desc(missions.completedAt))
-    .limit(1);
+  const mission = await getCompletedMission(incidentId);
 
   if (!mission || !mission.outcome) {
-    // Fallback: just mark completed if no mission data
-    await db.update(incidents).set({ status: "completed" }).where(eq(incidents.id, incidentId));
+    await setIncidentStatus(incidentId, "completed");
     sendJson(res, 200, { ok: true });
     return;
   }
 
   const sessionId = incident.sessionId;
   const outcome = mission.outcome;
+  const dispatchedHeroes = await getMissionDispatchedHeroes(mission.id);
 
-  // Fetch dispatched heroes via missionHeroes junction
-  const heroRows = await db
-    .select({ hero: heroes })
-    .from(missionHeroes)
-    .innerJoin(heroes, eq(missionHeroes.heroId, heroes.id))
-    .where(eq(missionHeroes.missionId, mission.id));
-
-  const dispatchedHeroes = heroRows.map((r) => r.hero);
-
-  // Mark incident completed
-  await db.update(incidents).set({ status: "completed" }).where(eq(incidents.id, incidentId));
+  await setIncidentStatus(incidentId, "completed");
 
   // Apply score/health consequences
   if (outcome === "failure") {
@@ -430,15 +315,10 @@ export async function acknowledgeDebrief(req: Request, res: Response) {
   // Transition heroes to resting — happens now, after player has seen the outcome
   await Promise.all(
     dispatchedHeroes.map(async (hero) => {
-      const newHealth = outcome === "failure"
-        ? rollHealthAfterFailure(hero.health)
-        : hero.health;
+      const newHealth = outcome === "failure" ? rollHealthAfterFailure(hero.health) : hero.health;
       const cooldownUntil = getCooldownUntil(newHealth);
 
-      await db
-        .update(heroes)
-        .set({ availability: "resting", health: newHealth, cooldownUntil })
-        .where(eq(heroes.id, hero.id));
+      await setHeroResting(hero.id, newHealth, cooldownUntil);
 
       send(sessionId, "hero:state_update", {
         heroId: hero.id,

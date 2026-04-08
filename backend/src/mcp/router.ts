@@ -1,17 +1,13 @@
 import { Router } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { registerGetHeroProfile } from "@/mcp/tools/get_hero_profile.js";
 import { registerGetHeroMissionHistory } from "@/mcp/tools/get_hero_mission_history.js";
-import { registerUpdateHeroState } from "@/mcp/tools/update_hero_state.js";
 import { registerSaveDispatchRecommendation } from "@/mcp/tools/save_dispatch_recommendation.js";
 import { registerGetDispatchRecommendation } from "@/mcp/tools/get_dispatch_recommendation.js";
 
 function createMcpServer() {
   const server = new McpServer({ name: "vigil-mcp", version: "1.0.0" });
-  registerGetHeroProfile(server);
   registerGetHeroMissionHistory(server);
-  registerUpdateHeroState(server);
   registerSaveDispatchRecommendation(server);
   registerGetDispatchRecommendation(server);
   return server;
