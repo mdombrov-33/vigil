@@ -2,10 +2,8 @@ import { Request, Response } from "express";
 import { db, heroes, incidents, missions, missionHeroes } from "@/db/index.js";
 import { and, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { sendJson } from "@/utils/response";
-import {
-  runIncidentCreationPipeline,
-  runMissionPipeline,
-} from "@/agents/pipeline";
+import { runIncidentCreationPipeline } from "@/agents/pipelines/incident.js";
+import { runMissionPipeline } from "@/agents/pipelines/mission.js";
 import { resolveChoice } from "@/services/interrupt-gate";
 import { send } from "@/sse/manager.js";
 import { dockCityHealth, addScore } from "@/services/city-health.js";

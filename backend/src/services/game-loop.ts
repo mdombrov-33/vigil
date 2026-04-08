@@ -2,7 +2,7 @@ import { db, incidents, sessions } from "@/db/index.js";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import { getActiveSessions, send, log } from "@/sse/manager.js";
 import { dockCityHealth } from "@/services/city-health.js";
-import { runIncidentCreationPipeline } from "@/agents/pipeline.js";
+import { runIncidentCreationPipeline } from "@/agents/pipelines/incident.js";
 
 const MAX_ACTIVE_INCIDENTS = 4;
 const SPAWN_INTERVAL_MS = 45_000 + Math.random() * 15_000; // used only for initial lastSpawn offset
