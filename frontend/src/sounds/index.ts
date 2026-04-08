@@ -9,11 +9,14 @@ import { diceShake1Sound } from "@/lib/dice-shake-1";
 import { diceThrow1Sound } from "@/lib/dice-throw-1";
 import { error003Sound } from "@/lib/error-003";
 
-function play(dataUri: string, volume = 1) {
-  playSound(dataUri, { volume }).catch(() => {});
+let masterVolume = 0.35;
+
+function play(dataUri: string, scale = 1) {
+  playSound(dataUri, { volume: masterVolume * scale }).catch(() => {});
 }
 
 export const sounds = {
+  setVolume:  (v: number) => { masterVolume = v; },
   slotDrop:   () => play(cardPlace1Sound.dataUri),
   slotRemove: () => play(cardShove2Sound.dataUri),
   pinClick:   () => play(select001Sound.dataUri),

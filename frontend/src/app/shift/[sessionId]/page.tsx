@@ -9,6 +9,7 @@ import { useGameStore } from "@/stores/gameStore";
 import { useHeroes } from "@/hooks/useHeroes";
 import { useSSE } from "@/hooks/useSSE";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
+import { sounds } from "@/sounds";
 import { useGameModals } from "@/hooks/useGameModals";
 import { GameLayout } from "@/components/game/GameLayout";
 import { ShiftEndScreen } from "@/components/game/ShiftEndScreen";
@@ -38,6 +39,7 @@ export default function ActiveShiftPage() {
     setSession(sessionId, 100, 0);
     queryClient.invalidateQueries({ queryKey: ["heroes"] });
     startMusic();
+    sounds.setVolume(volume);
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hydrate city health + score from server once session data arrives
@@ -81,7 +83,7 @@ export default function ActiveShiftPage() {
         onDispatched={modals.handleDispatched}
         startScreenSlot={null}
         volume={volume}
-        onVolumeChange={setVolume}
+        onVolumeChange={(v) => { setVolume(v); sounds.setVolume(v); }}
         linkedHeroAlias={modals.selectedIncident?.linkedHeroAlias ?? null}
       />
       <HeroDetailModal hero={modals.selectedHero} onClose={modals.closeHeroDetail} />
