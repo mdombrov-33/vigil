@@ -16,9 +16,9 @@ interface Props {
 
 // Danger level → visual config
 const DANGER_CONFIG = {
-  1: { diamond: 7,  ringR: 17, color: "#22c55e", extraRing: false },
-  2: { diamond: 10, ringR: 19, color: "#f97316", extraRing: false },
-  3: { diamond: 13, ringR: 21, color: "#ef4444", extraRing: true  },
+  1: { diamond: 7,  ringR: 17, color: "var(--success)", colorBorder: "var(--success-border)", colorSubtle: "var(--success-subtle)", extraRing: false },
+  2: { diamond: 10, ringR: 19, color: "var(--warning)", colorBorder: "var(--warning-border)", colorSubtle: "var(--warning-subtle)", extraRing: false },
+  3: { diamond: 13, ringR: 21, color: "var(--danger)",  colorBorder: "var(--danger-border)",  colorSubtle: "var(--danger-subtle)",  extraRing: true  },
 } as const;
 
 const CIRCUMFERENCE = (r: number) => 2 * Math.PI * r;
@@ -71,7 +71,7 @@ function TimerRing({
   }, [pausedAt]);
 
   const isUrgent = progress < 0.25;
-  const strokeColor = isUrgent ? "#ef4444" : color;
+  const strokeColor = isUrgent ? "var(--danger)" : color;
   const offset = circ * (1 - progress);
   const opacity = isUrgent ? 1 : progress > 0.6 ? 0.35 : 0.6;
 
@@ -144,7 +144,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
           <TimerRing
             createdAt={interruptCreatedAt}
             expiresAt={interruptExpiresAt}
-            color="#ef4444"
+            color="var(--danger)"
             radius={22}
             strokeWidth={4}
           />
@@ -154,10 +154,10 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
           className="absolute"
           style={{
             top: "50%", left: "50%",
-            width: 12, height: 12,
+            width: 14, height: 14,
             transform: "translate(-50%, -50%) rotate(45deg)",
-            backgroundColor: "#ef4444",
-            boxShadow: "0 0 12px #ef4444, 0 0 24px #ef444460",
+            backgroundColor: "var(--danger)",
+            boxShadow: "0 0 16px var(--danger), 0 0 32px var(--danger-border)",
           }}
         />
         {/* Label */}
@@ -167,12 +167,13 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
             top: "calc(100% + 5px)",
             left: "50%",
             transform: "translateX(-50%)",
-            fontSize: 9,
+            fontSize: 10,
+            fontWeight: 600,
             letterSpacing: "0.12em",
-            color: "#ef4444",
-            backgroundColor: "#0a000088",
+            color: "var(--danger)",
+            backgroundColor: "var(--panel-inset)",
             padding: "2px 5px",
-            border: "1px solid #ef444460",
+            border: "1px solid var(--danger-border)",
           }}
         >
           ACT NOW
@@ -199,7 +200,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
             <circle
               cx={22} cy={22} r={14}
               fill="none"
-              stroke={`${color}55`}
+              stroke={cfg.colorBorder}
               strokeWidth={1}
               strokeDasharray="4 6"
               strokeLinecap="round"
@@ -214,9 +215,9 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
             top: "50%", left: "50%",
             width: isActive ? 9 : 7, height: isActive ? 9 : 7,
             transform: "translate(-50%, -50%) rotate(45deg)",
-            backgroundColor: isActive ? `${color}70` : "transparent",
-            border: `1.5px solid ${color}${isActive ? "80" : "60"}`,
-            boxShadow: isActive ? `0 0 6px ${color}40` : "none",
+            backgroundColor: isActive ? cfg.colorBorder : "transparent",
+            border: `1.5px solid ${cfg.colorBorder}`,
+            boxShadow: isActive ? `0 0 6px ${cfg.colorSubtle}` : "none",
           }}
         />
 
@@ -229,10 +230,10 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
             transform: "translateX(-50%)",
             fontSize: 9,
             letterSpacing: "0.1em",
-            color: `${color}70`,
-            backgroundColor: "#06060eaa",
+            color: cfg.color,
+            backgroundColor: "#090806aa",
             padding: "1px 5px",
-            border: `1px solid ${color}25`,
+            border: `1px solid ${cfg.colorBorder}`,
           }}
         >
           {isActive ? "ON SCENE" : "ROUTING"}
@@ -243,7 +244,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
 
   // Debriefing — clickable, amber weight
   if (isDebriefing) {
-    const amber = "#fbbf24";
+    const amber = "var(--text-amber)";
     return (
       <button
         onClick={handleClick}
@@ -255,7 +256,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
           className="absolute rounded-full pointer-events-none"
           style={{
             inset: 8,
-            border: `1px solid ${amber}60`,
+            border: "1px solid var(--amber-border)",
           }}
         />
 
@@ -269,8 +270,8 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
             backgroundColor: amber,
             border: `1px solid ${amber}`,
             boxShadow: rollPending
-              ? `0 0 12px ${amber}90, 0 0 24px ${amber}40`
-              : `0 0 8px ${amber}60, 0 0 16px ${amber}25`,
+              ? `0 0 12px var(--text-amber), 0 0 24px var(--amber-subtle)`
+              : `0 0 8px var(--amber-border), 0 0 16px var(--amber-subtle)`,
           }}
         />
 
@@ -281,12 +282,12 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
             top: "calc(100% + 6px)",
             left: "50%",
             transform: "translateX(-50%)",
-            fontSize: 9,
+            fontSize: 10,
             letterSpacing: "0.12em",
             color: amber,
-            backgroundColor: "#06060ecc",
+            backgroundColor: "#090806cc",
             padding: "2px 6px",
-            border: `1px solid ${amber}50`,
+            border: "1px solid var(--amber-border)",
           }}
         >
           {rollPending ? "ROLL" : "DEBRIEF"}
@@ -324,7 +325,7 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
           className="absolute rounded-full pointer-events-none"
           style={{
             inset: 2,
-            border: `1px solid ${color}40`,
+            border: `1px solid ${cfg.colorSubtle}`,
             animation: "ping 2s ease-out infinite",
           }}
         />
@@ -337,8 +338,8 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
           top: "50%", left: "50%",
           width: cfg.diamond, height: cfg.diamond,
           transform: "translate(-50%, -50%) rotate(45deg)",
-          backgroundColor: color,
-          boxShadow: `0 0 ${cfg.extraRing ? 14 : 8}px ${color}, 0 0 ${cfg.extraRing ? 28 : 16}px ${color}50`,
+          backgroundColor: cfg.color,
+          boxShadow: `0 0 ${cfg.extraRing ? 14 : 8}px ${cfg.color}, 0 0 ${cfg.extraRing ? 28 : 16}px ${cfg.colorBorder}`,
         }}
       />
 
@@ -349,13 +350,14 @@ export function IncidentPin({ incident, x, y, onClick, hasInterrupt, rollPending
           top: "calc(100% + 7px)",
           left: "50%",
           transform: "translateX(-50%)",
-          fontSize: 9,
+          fontSize: 10,
+          fontWeight: 500,
           letterSpacing: "0.08em",
-          color,
-          opacity: 0.85,
-          backgroundColor: "#06060ecc",
+          color: cfg.color,
+          opacity: 1,
+          backgroundColor: "#090806cc",
           padding: "2px 6px",
-          border: `1px solid ${color}35`,
+          border: `1px solid ${cfg.colorBorder}`,
           maxWidth: 160,
           overflow: "hidden",
           textOverflow: "ellipsis",

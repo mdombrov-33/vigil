@@ -13,49 +13,86 @@ interface Props {
   onVolumeChange?: (v: number) => void;
 }
 
-export function GameHeader({ onEndShift, shiftStarted, volume, onVolumeChange }: Props) {
+export function GameHeader({
+  onEndShift,
+  shiftStarted,
+  volume,
+  onVolumeChange,
+}: Props) {
   const cityHealth = useGameStore((s) => s.cityHealth);
   const score = useGameStore((s) => s.score);
   const filledSegments = Math.round((cityHealth / 100) * SEGMENTS);
   const isCritical = cityHealth <= 30;
 
+  // Graduated segment color: segments fill left to right.
+  function getSegmentColor(index: number, filled: boolean): string {
+    if (!filled) return "var(--border)";
+    if (index >= 14) return "var(--success)"; // rightmost third — green (healthy)
+    if (index >= 7) return "var(--warning)"; // middle third — orange (warning)
+    return "var(--danger)"; // leftmost third — red (critical)
+  }
+
+  const healthColor = isCritical
+    ? "var(--danger)"
+    : cityHealth > 60
+      ? "var(--success)"
+      : "var(--warning)";
+
   return (
     <div className="flex items-center gap-4 h-full px-4">
       {/* Brand */}
-      <span className="font-mono text-xs tracking-widest uppercase shrink-0" style={{ color: "#fbbf24" }}>
+      <span
+        className="font-mono text-xs tracking-widest uppercase shrink-0"
+        style={{ color: "var(--text-amber)", textShadow: "0 0 20px #f0a80060" }}
+      >
         VIGIL SDN
       </span>
 
       {shiftStarted && (
         <>
+          {/* Separator */}
+          <span style={{ color: "var(--border-bright)", fontSize: 10 }}>·</span>
+
           {/* Health bar */}
           <div className="flex items-center gap-1">
-            <span className="text-[9px] font-mono text-white/40 mr-1 shrink-0">CITY</span>
+            <span
+              className="text-[9px] font-mono mr-1 shrink-0"
+              style={{ color: "#4a4030" }}
+            >
+              CITY
+            </span>
             <div className="flex gap-0.5">
               {Array.from({ length: SEGMENTS }).map((_, i) => {
                 const filled = i < filledSegments;
-                const segColor = isCritical
-                  ? filled ? "#ef4444" : "#1e1e2e"
-                  : filled ? "#22c55e" : "#1e1e2e";
                 return (
                   <div
                     key={i}
                     className={`w-2.5 h-3.5 rounded-sm transition-colors ${isCritical && filled ? "animate-pulse" : ""}`}
-                    style={{ backgroundColor: segColor }}
+                    style={{ backgroundColor: getSegmentColor(i, filled) }}
                   />
                 );
               })}
             </div>
             <NumberTicker
               value={cityHealth}
-              className={`font-mono text-[10px] ml-1 shrink-0 tabular-nums ${isCritical ? "text-red-500" : "text-green-500"}`}
+              className="font-mono text-[10px] ml-1 shrink-0 tabular-nums"
+              style={{ color: healthColor }}
             />
           </div>
 
+          {/* Separator */}
+          <span style={{ color: "var(--border-bright)", fontSize: 10 }}>·</span>
+
           {/* Score */}
           <div className="flex items-center gap-1">
-            <span className="text-[9px] font-mono text-white/40">SCORE</span>
-            <NumberTicker value={score} className="font-mono text-sm tabular-nums text-amber-400" />
+            <span className="text-[9px] font-mono" style={{ color: "#4a4030" }}>
+              SCORE
+            </span>
+            <NumberTicker
+              value={score}
+              className="font-mono text-sm tabular-nums"
+              style={{ color: "var(--text-amber)" }}
+            />
           </div>
         </>
       )}
@@ -88,7 +125,10 @@ export function GameHeader({ onEndShift, shiftStarted, volume, onVolumeChange }:
         <button
           onClick={onEndShift}
           className={`${volume !== undefined ? "" : "ml-auto"} font-mono text-[9px] tracking-widest uppercase px-2 py-1 hover:opacity-100 transition-opacity`}
-          style={{ color: "var(--text-muted)", border: "1px solid var(--border-subtle)" }}
+          style={{
+            color: "var(--text-muted)",
+            border: "1px solid var(--border-bright)",
+          }}
         >
           End Shift
         </button>

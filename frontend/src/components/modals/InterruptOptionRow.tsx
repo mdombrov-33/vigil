@@ -40,7 +40,7 @@ function StatRoll({
     return () => clearTimeout(start);
   }, [combinedValue]);
 
-  const outcomeColor = outcome === "success" ? "#22c55e" : "#ef4444";
+  const outcomeColor = outcome === "success" ? "var(--success)" : "var(--danger)";
 
   return (
     <motion.div
@@ -65,7 +65,7 @@ function StatRoll({
       <div className="flex items-baseline gap-2 font-mono">
         <motion.span
           className="text-2xl font-bold tabular-nums"
-          animate={{ color: settled ? outcomeColor : "#fbbf24" }}
+          animate={{ color: settled ? outcomeColor : "var(--text-amber)" }}
           transition={{ duration: 0.45 }}
         >
           {displayed}
@@ -73,7 +73,7 @@ function StatRoll({
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>vs</span>
         <motion.span
           className="text-base"
-          animate={{ color: settled ? `${outcomeColor}70` : "#ffffff35" }}
+          animate={{ color: settled ? outcomeColor : "var(--text-muted)" }}
           transition={{ duration: 0.45 }}
         >
           {requiredValue}
@@ -118,6 +118,7 @@ export function InterruptOptionRow({
   option, index, isSubmitting, isResolved, isChosen, topHeroId, heroIds,
   resolvedOutcome, resolvedCombinedValue, onSelect,
 }: Props) {
+  const [hovered, setHovered] = useState(false);
   const { data: heroes = [] } = useHeroes();
   const topHero = heroes.find((h) => h.id === topHeroId) ?? null;
   const topHeroDispatched = topHeroId != null && heroIds.includes(topHeroId);
@@ -127,11 +128,11 @@ export function InterruptOptionRow({
     return (
       <div
         className="flex items-center gap-3 px-4 py-3"
-        style={{ border: "1px solid #1a1a2a", backgroundColor: "#0a0a10" }}
+        style={{ border: "1px solid var(--border)", backgroundColor: "var(--panel-inset)" }}
       >
         <div className="shrink-0 w-4 h-4 rounded-full border flex items-center justify-center"
-          style={{ borderColor: "#2a2a40" }}>
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#2a2a40" }} />
+          style={{ borderColor: "var(--border-bright)" }}>
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--border-bright)" }} />
         </div>
         {topHero?.portraitUrl && (
           <div className="relative w-7 h-7 shrink-0 rounded overflow-hidden grayscale opacity-30">
@@ -146,8 +147,8 @@ export function InterruptOptionRow({
   }
 
   const isDisabled = isSubmitting || isResolved || isLocked;
-  const borderColor = isChosen ? "#fbbf24" : "var(--border)";
-  const bgColor = isChosen ? "#fbbf2412" : "var(--panel-raised)";
+  const borderColor = isChosen ? "var(--text-amber)" : "var(--border)";
+  const bgColor = isChosen ? "var(--amber-subtle)" : "var(--panel-raised)";
 
   const showRoll =
     isChosen && isResolved && !option.isHeroSpecific &&
@@ -163,22 +164,28 @@ export function InterruptOptionRow({
       onClick={!isDisabled ? onSelect : undefined}
       disabled={isDisabled}
       className="w-full text-left flex items-center gap-3 p-4 relative"
-      style={{ border: `1px solid ${borderColor}`, backgroundColor: bgColor, cursor: isDisabled ? "default" : "pointer" }}
-      whileHover={!isDisabled ? { borderColor: "#fbbf2450", backgroundColor: "#fbbf2408" } : {}}
+      style={{
+        border: `1px solid ${hovered && !isDisabled ? "var(--text-amber)" : borderColor}`,
+        backgroundColor: hovered && !isDisabled ? "var(--amber-subtle)" : bgColor,
+        cursor: isDisabled ? "default" : "pointer",
+        transition: "border-color 0.18s ease, background-color 0.18s ease",
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       whileTap={!isDisabled ? { scale: 0.99 } : {}}
     >
       <AnimatePresence>
         {isChosen && (
           <motion.div className="absolute left-0 top-0 bottom-0 w-0.5"
-            style={{ backgroundColor: "#fbbf24" }}
+            style={{ backgroundColor: "var(--text-amber)" }}
             initial={{ scaleY: 0 }} animate={{ scaleY: 1 }}
             transition={{ duration: 0.12 }} />
         )}
       </AnimatePresence>
 
       <div className="shrink-0 w-4 h-4 rounded-full border flex items-center justify-center"
-        style={{ borderColor: isChosen ? "#fbbf24" : "#404060" }}>
-        {isChosen && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#fbbf24" }} />}
+        style={{ borderColor: isChosen ? "var(--text-amber)" : "#404060" }}>
+        {isChosen && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--text-amber)" }} />}
       </div>
 
       {option.isHeroSpecific && topHero?.portraitUrl && (

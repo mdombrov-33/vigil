@@ -36,12 +36,12 @@ export function RosterBar({
   return (
     <div
       className="relative h-full"
-      style={{ borderTop: "1px solid #1e1e2e", background: "linear-gradient(to top, #05050a, #08080f)" }}
+      style={{ borderTop: "1px solid var(--border)", background: "linear-gradient(to top, #080706, #0a0908)" }}
     >
       <div className="absolute top-0 left-0 right-0 h-px z-10 pointer-events-none"
-        style={{ background: "linear-gradient(to right, transparent, #fbbf2420, transparent)" }} />
+        style={{ background: "linear-gradient(to right, transparent, #f0a80025, transparent)" }} />
       <div className="absolute right-0 top-0 bottom-0 w-12 pointer-events-none z-10"
-        style={{ background: "linear-gradient(to right, transparent, #05050a)" }} />
+        style={{ background: "linear-gradient(to right, transparent, #080706)" }} />
 
       <div className="flex items-center h-full px-6 gap-6 overflow-x-auto roster-scroll">
         {heroes.map((hero) => (

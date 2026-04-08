@@ -9,12 +9,6 @@ import type { Incident } from "@/types/api";
 // Fixed HQ — heroes depart from here
 export const HQ = { x: 50, y: 92 };
 
-const dangerColor = {
-  1: "#22c55e",
-  2: "#f97316",
-  3: "#ef4444",
-} as const;
-
 const TRAVEL_DURATION = 11; // matches backend 12s sleep
 
 interface Props {
@@ -40,9 +34,9 @@ export function HeroTravelers({ incidents, incidentSlots, incidentHeroes }: Prop
         <span
           className="font-mono text-[7px] tracking-widest px-1.5 py-0.5"
           style={{
-            color: "#fbbf2450",
-            border: "1px solid #fbbf2420",
-            backgroundColor: "#06060ecc",
+            color: "var(--text-muted)",
+            border: "1px solid var(--border-subtle)",
+            backgroundColor: "var(--panel-inset)",
           }}
         >
           HQ
@@ -55,7 +49,6 @@ export function HeroTravelers({ incidents, incidentSlots, incidentHeroes }: Prop
         if (!location) return [];
 
         const heroIds = incidentHeroes[incident.id] ?? [];
-        const color = dangerColor[incident.dangerLevel];
         const isActive = incident.status === "active";
         const count = heroIds.length;
 
@@ -105,14 +98,14 @@ export function HeroTravelers({ incidents, incidentSlots, incidentHeroes }: Prop
                 style={{
                   width: 28,
                   height: 28,
-                  border: "1px solid #ffffff15",
+                  border: "1px solid var(--border)",
                   boxShadow: `0 2px 8px rgba(0,0,0,0.8)`,
                 }}
               >
                 <AvatarImage src={hero.portraitUrl ?? ""} alt={hero.alias} className="object-top" />
                 <AvatarFallback
                   className="font-mono text-[9px]"
-                  style={{ backgroundColor: "#0d0d1a", color }}
+                  style={{ backgroundColor: "var(--panel-inset)", color: "var(--text-amber)" }}
                 >
                   {hero.alias[0]}
                 </AvatarFallback>

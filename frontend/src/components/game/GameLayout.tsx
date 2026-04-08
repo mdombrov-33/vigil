@@ -41,9 +41,9 @@ export function GameLayout({
   const incidentOpen = !!selectedIncident;
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ backgroundColor: "#08080f" }}>
+    <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--background)" }}>
       {/* Header */}
-      <div className="h-10 shrink-0 border-b" style={{ borderColor: "#1e1e2e" }}>
+      <div className="h-10 shrink-0 border-b" style={{ borderColor: "var(--border)" }}>
         <GameHeader shiftStarted={shiftStarted} onEndShift={onEndShift} volume={volume} onVolumeChange={onVolumeChange} />
       </div>
 
@@ -62,9 +62,9 @@ export function GameLayout({
           </CityMap>
         </div>
 
-        {/* SDN Log */}
+        {/* SDN Log — isolation contains CRT library's internal z-indexes */}
         {shiftStarted && (
-          <div className="w-80 shrink-0 border-l overflow-hidden" style={{ borderColor: "#1e1e2e", backgroundColor: "#050508" }}>
+          <div className="w-80 shrink-0 border-l overflow-hidden" style={{ borderColor: "var(--border)", backgroundColor: "var(--panel-inset)", isolation: "isolate" }}>
             <LogPanel />
           </div>
         )}

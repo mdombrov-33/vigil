@@ -7,11 +7,11 @@ import { useGameStore, type LogEntry } from "@/stores/gameStore";
 const CRTEffect = dynamic(() => import("vault66-crt-effect"), { ssr: false });
 
 const entryColor: Record<LogEntry["type"], string> = {
-  neutral: "#fbbf24",
-  success: "#22c55e",
-  failure: "#ef4444",
-  eval: "#a78bfa",
-  system: "#60a5fa",
+  neutral: "var(--text-amber)",
+  success: "var(--success)",
+  failure: "var(--danger)",
+  eval:    "var(--eval)",
+  system:  "var(--info)",
 };
 
 function LogLine({ entry }: { entry: LogEntry }) {
@@ -37,11 +37,11 @@ function LogContent() {
   return (
     <div
       className="flex flex-col h-full"
-      style={{ backgroundColor: "#050508" }}
+      style={{ backgroundColor: "var(--panel-inset)" }}
     >
       <div
         className="px-3 py-2 text-xs font-mono tracking-widest uppercase border-b shrink-0"
-        style={{ color: "#fbbf24", borderColor: "#1e1e2e" }}
+        style={{ color: "var(--text-amber)", borderColor: "var(--border)" }}
       >
         SDN Comms
       </div>
@@ -49,7 +49,7 @@ function LogContent() {
         {entries.length === 0 && (
           <div
             className="font-mono text-xs opacity-60"
-            style={{ color: "#fbbf24" }}
+            style={{ color: "var(--text-amber)" }}
           >
             Awaiting dispatch...
           </div>

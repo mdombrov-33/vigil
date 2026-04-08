@@ -8,21 +8,21 @@ interface Props {
   onEndShift: () => void;
 }
 
-function getGrade(score: number): { grade: string; label: string; color: string } {
-  if (score >= 600) return { grade: "S", label: "EXEMPLARY", color: "#22c55e" };
-  if (score >= 400) return { grade: "A", label: "OUTSTANDING", color: "#86efac" };
-  if (score >= 250) return { grade: "B", label: "COMPETENT", color: "#fbbf24" };
-  if (score >= 100) return { grade: "C", label: "ADEQUATE", color: "#f97316" };
-  return { grade: "D", label: "NEEDS REVIEW", color: "#ef4444" };
+function getGrade(score: number): { grade: string; label: string; color: string; glow: string } {
+  if (score >= 600) return { grade: "S", label: "EXEMPLARY",    color: "var(--success)",    glow: "#1ecc6a40" };
+  if (score >= 400) return { grade: "A", label: "OUTSTANDING",  color: "var(--success)",    glow: "#1ecc6a40" };
+  if (score >= 250) return { grade: "B", label: "COMPETENT",    color: "var(--text-amber)", glow: "#f0a80040" };
+  if (score >= 100) return { grade: "C", label: "ADEQUATE",     color: "var(--warning)",    glow: "#f0801040" };
+  return              { grade: "D", label: "NEEDS REVIEW",  color: "var(--danger)",     glow: "#ff2c4440" };
 }
 
 export function ShiftEndScreen({ score, cityHealth, onEndShift }: Props) {
-  const { grade, label, color } = getGrade(score);
+  const { grade, label, color, glow } = getGrade(score);
 
   return (
     <motion.div
       className="absolute inset-0 z-30 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(8,8,15,0.92)" }}
+      style={{ backgroundColor: "color-mix(in srgb, var(--background) 92%, transparent)" }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6 }}
@@ -43,7 +43,7 @@ export function ShiftEndScreen({ score, cityHealth, onEndShift }: Props) {
 
         {/* Grade */}
         <div className="flex flex-col items-center gap-2">
-          <span className="font-mono font-bold" style={{ fontSize: 96, lineHeight: 1, color }}>
+          <span className="font-mono font-bold" style={{ fontSize: 96, lineHeight: 1, color, textShadow: `0 0 40px ${glow}` }}>
             {grade}
           </span>
           <span className="font-mono text-xs tracking-[0.2em]" style={{ color }}>
@@ -58,7 +58,7 @@ export function ShiftEndScreen({ score, cityHealth, onEndShift }: Props) {
             <span className="text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>SCORE</span>
           </div>
           <div className="flex flex-col items-center gap-1">
-            <span className="text-2xl font-bold" style={{ color: cityHealth > 50 ? "#22c55e" : cityHealth > 25 ? "#f97316" : "#ef4444" }}>
+            <span className="text-2xl font-bold" style={{ color: cityHealth > 50 ? "var(--success)" : cityHealth > 25 ? "var(--warning)" : "var(--danger)" }}>
               {cityHealth}
             </span>
             <span className="text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>CITY HP</span>

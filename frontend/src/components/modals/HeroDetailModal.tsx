@@ -20,14 +20,14 @@ interface Props {
   onClose: () => void;
 }
 
-const healthBadge: Record<string, { label: string; color: string; bg: string }> = {
-  injured: { label: "INJURED", color: "#fb923c", bg: "#7c2d12cc" },
-  down:    { label: "OFFLINE", color: "#ef4444", bg: "#450a0acc" },
+const healthBadge: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  injured: { label: "INJURED", color: "var(--warning)", bg: "var(--warning-subtle)", border: "var(--warning-border)" },
+  down:    { label: "OFFLINE", color: "var(--danger)",  bg: "var(--danger-subtle)",  border: "var(--danger-border)"  },
 };
 
-const availabilityBadge: Record<string, { label: string; color: string }> = {
-  on_mission: { label: "DEPLOYED", color: "#3b82f6" },
-  resting:    { label: "RESTING",  color: "#eab308" },
+const availabilityBadge: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  on_mission: { label: "DEPLOYED", color: "var(--info)",       bg: "var(--info-subtle)",    border: "var(--info-border)"    },
+  resting:    { label: "RESTING",  color: "var(--text-amber)", bg: "var(--amber-subtle)",   border: "var(--amber-border)"   },
 };
 
 export function HeroDetailModal({ hero, onClose }: Props) {
@@ -70,8 +70,8 @@ export function HeroDetailModal({ hero, onClose }: Props) {
               x: "-50%",
               y: "-50%",
               maxWidth: 680,
-              backgroundColor: "#06060e",
-              border: "1px solid #1e1e2e",
+              backgroundColor: "var(--panel)",
+              border: "1px solid var(--border)",
               maxHeight: "88vh",
             }}
             initial={{ opacity: 0, scale: 0.94, y: "-46%" }}
@@ -93,20 +93,20 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                     style={{ filter: health === "down" ? "grayscale(0.5)" : "none" }}
                   />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "#0d0d1a" }}>
-                    <span className="font-mono text-6xl" style={{ color: "#fbbf2420" }}>{hero.alias[0]}</span>
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "var(--panel-inset)" }}>
+                    <span className="font-mono text-6xl" style={{ color: "var(--amber-subtle)" }}>{hero.alias[0]}</span>
                   </div>
                 )}
                 {/* Right fade into panel */}
-                <div className="absolute inset-0" style={{ background: "linear-gradient(to right, transparent 65%, #06060e 100%)" }} />
+                <div className="absolute inset-0" style={{ background: "linear-gradient(to right, transparent 65%, var(--panel) 100%)" }} />
                 {/* Bottom fade */}
-                <div className="absolute inset-0" style={{ background: "linear-gradient(to top, #06060e 0%, transparent 35%)" }} />
+                <div className="absolute inset-0" style={{ background: "linear-gradient(to top, var(--panel) 0%, transparent 35%)" }} />
 
                 {/* Health badge */}
                 {hBadge && (
                   <div
                     className="absolute top-3 left-3 px-2 py-0.5 font-mono text-[8px] tracking-widest z-10"
-                    style={{ backgroundColor: hBadge.bg, color: hBadge.color, border: `1px solid ${hBadge.color}50` }}
+                    style={{ backgroundColor: hBadge.bg, color: hBadge.color, border: `1px solid ${hBadge.border}` }}
                   >
                     {hBadge.label}
                   </div>
@@ -114,7 +114,7 @@ export function HeroDetailModal({ hero, onClose }: Props) {
 
                 {/* Name + alias pinned at bottom of portrait */}
                 <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
-                  <div className="font-mono text-xl font-bold tracking-widest leading-none" style={{ color: "#fbbf24" }}>
+                  <div className="font-mono text-xl font-bold tracking-widest leading-none" style={{ color: "var(--text-amber)" }}>
                     {hero.alias.toUpperCase()}
                   </div>
                   <div className="font-mono text-[9px] tracking-widest mt-1" style={{ color: "var(--text-secondary)" }}>
@@ -126,7 +126,7 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                         <span
                           key={label}
                           className="font-mono text-[8px] tracking-widest px-1.5 py-0.5"
-                          style={{ color: "var(--text-secondary)", border: "1px solid #2a2a3e", backgroundColor: "#06060e99" }}
+                          style={{ color: "var(--text-secondary)", border: "1px solid var(--border)", backgroundColor: "var(--panel-inset)" }}
                         >
                           {label.toUpperCase()}
                         </span>
@@ -137,10 +137,10 @@ export function HeroDetailModal({ hero, onClose }: Props) {
               </div>
 
               {/* RIGHT — info + radar */}
-              <div className="flex-1 flex flex-col overflow-hidden" style={{ borderLeft: "1px solid #1e1e2e" }}>
+              <div className="flex-1 flex flex-col overflow-hidden" style={{ borderLeft: "1px solid var(--border)" }}>
 
                 {/* Header row */}
-                <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid #1e1e2e" }}>
+                <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
                   <div className="flex flex-col gap-1.5">
                     {(hero.age || hero.height) && (
                       <div className="flex gap-3">
@@ -159,7 +159,7 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                     {aBadge && (
                       <span
                         className="font-mono text-[8px] tracking-widest self-start px-2 py-0.5"
-                        style={{ color: aBadge.color, border: `1px solid ${aBadge.color}50`, backgroundColor: `${aBadge.color}18` }}
+                        style={{ color: aBadge.color, border: `1px solid ${aBadge.border}`, backgroundColor: aBadge.bg }}
                       >
                         {aBadge.label}
                       </span>
@@ -168,7 +168,7 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                   <button
                     onClick={handleClose}
                     className="font-mono text-xs w-6 h-6 flex items-center justify-center hover:opacity-100 transition-opacity shrink-0"
-                    style={{ color: "var(--text-muted)", border: "1px solid #1e1e2e" }}
+                    style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}
                   >
                     ✕
                   </button>
@@ -190,16 +190,16 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                   <div className="px-2 shrink-0" style={{ height: 200, pointerEvents: "none" }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart data={radarData} outerRadius="68%">
-                        <PolarGrid stroke="#ffffff0d" />
+                        <PolarGrid stroke="#ffffff12" />
                         <PolarAngleAxis
                           dataKey="stat"
-                          tick={{ fill: "#4b5563", fontSize: 9, fontFamily: "monospace" }}
+                          tick={{ fill: "#6a5e48", fontSize: 9, fontFamily: "monospace" }}
                         />
                         <Radar
                           name="Stats"
                           dataKey="value"
-                          stroke="#fbbf24"
-                          fill="#fbbf24"
+                          stroke="var(--text-amber)"
+                          fill="var(--text-amber)"
                           fillOpacity={0.12}
                           strokeWidth={1.5}
                           isAnimationActive
@@ -213,10 +213,10 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                   {/* Stat values row */}
                   <div className="px-4 pb-3 shrink-0 flex gap-3 justify-center flex-wrap">
                     {STAT_META.map((s) => (
-                      <div key={s.key} className="flex items-center gap-1">
-                        <s.Icon size={9} style={{ color: s.color }} />
-                        <span className="font-mono text-[8px] tracking-widest tabular-nums" style={{ color: s.color }}>
-                          {s.abbr} {hero[s.key as keyof Hero] as number}
+                      <div key={s.key} className="flex items-center gap-1.5">
+                        <s.Icon size={10} style={{ color: s.color }} />
+                        <span className="font-mono text-[9px] tracking-wider tabular-nums" style={{ color: s.color }}>
+                          {s.label} {hero[s.key as keyof Hero] as number}
                         </span>
                       </div>
                     ))}
@@ -224,11 +224,11 @@ export function HeroDetailModal({ hero, onClose }: Props) {
 
                   {/* Mission record */}
                   {total > 0 && (
-                    <div className="px-4 py-3 mt-auto shrink-0" style={{ borderTop: "1px solid #1e1e2e" }}>
+                    <div className="px-4 py-3 mt-auto shrink-0" style={{ borderTop: "1px solid var(--border)" }}>
                       <p className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>
-                        <span style={{ color: "#22c55e" }}>{hero.missionsCompleted}</span> completed
+                        <span style={{ color: "var(--success)" }}>{hero.missionsCompleted}</span> completed
                         {" · "}
-                        <span style={{ color: "#ef4444" }}>{hero.missionsFailed}</span> failed
+                        <span style={{ color: "var(--danger)" }}>{hero.missionsFailed}</span> failed
                       </p>
                     </div>
                   )}

@@ -12,19 +12,20 @@ import { api } from "@/api";
 import type { Incident } from "@/types/api";
 
 export const dangerMeta = {
-  1: { color: "#22c55e", label: "MINOR" },
-  2: { color: "#f97316", label: "STANDARD" },
-  3: { color: "#ef4444", label: "CRITICAL" },
+  1: { color: "var(--success)", colorBorder: "var(--success-border)", colorSubtle: "var(--success-subtle)", label: "MINOR" },
+  2: { color: "var(--warning)", colorBorder: "var(--warning-border)", colorSubtle: "var(--warning-subtle)", label: "STANDARD" },
+  3: { color: "var(--danger)",  colorBorder: "var(--danger-border)",  colorSubtle: "var(--danger-subtle)",  label: "CRITICAL" },
 } as const;
 
 interface SlotProps {
   index: number;
   heroId: string | null;
   dangerColor: string;
+  dangerColorSubtle: string;
   onRemove: () => void;
 }
 
-function HeroSlot({ index, heroId, dangerColor, onRemove }: SlotProps) {
+function HeroSlot({ index, heroId, dangerColor, dangerColorSubtle, onRemove }: SlotProps) {
   const { data: heroes = [] } = useHeroes();
   const hero = heroes.find((h) => h.id === heroId) ?? null;
   const { setNodeRef, isOver } = useDroppable({ id: `slot-${index}` });
@@ -34,9 +35,9 @@ function HeroSlot({ index, heroId, dangerColor, onRemove }: SlotProps) {
       ref={setNodeRef}
       className="relative w-16 h-16 rounded overflow-hidden transition-all"
       style={{
-        border: `1px solid ${isOver ? dangerColor : hero ? dangerColor + "80" : "#2a2a40"}`,
-        backgroundColor: isOver ? dangerColor + "15" : "#0d0d1a",
-        boxShadow: isOver ? `0 0 10px ${dangerColor}40` : "none",
+        border: `1px solid ${isOver ? dangerColor : hero ? "var(--border-bright)" : "var(--border)"}`,
+        backgroundColor: isOver ? "var(--panel-raised)" : "var(--panel-inset)",
+        boxShadow: isOver ? `0 0 10px ${dangerColorSubtle}` : "none",
       }}
     >
       {hero ? (
@@ -51,7 +52,7 @@ function HeroSlot({ index, heroId, dangerColor, onRemove }: SlotProps) {
         </>
       ) : (
         <div className="w-full h-full flex items-center justify-center">
-          <div className="w-5 h-5 rounded-full border border-dashed" style={{ borderColor: isOver ? dangerColor : "#2a2a40" }} />
+          <div className="w-5 h-5 rounded-full border border-dashed" style={{ borderColor: isOver ? dangerColor : "var(--border-bright)" }} />
         </div>
       )}
     </div>
@@ -107,7 +108,7 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
               className="relative w-full max-w-xl flex flex-col overflow-hidden"
               style={{
                 backgroundColor: "var(--panel)",
-                border: `1px solid ${danger?.color}30`,
+                border: `1px solid ${danger?.colorBorder ?? "var(--border)"}`,
                 maxHeight: "min(520px, 90%)",
               }}
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -117,13 +118,18 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
               onClick={(e) => e.stopPropagation()}
             >
               {/* Danger color top bar */}
-              <div className="h-0.5 shrink-0" style={{ backgroundColor: danger?.color }} />
+              <div className="h-1 shrink-0" style={{ backgroundColor: danger?.color }} />
 
               {/* Header */}
               <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 shrink-0">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="font-mono text-[9px] tracking-widest" style={{ color: danger?.color }}>
+                    <span className="font-mono text-[8px] tracking-widest px-2 py-0.5"
+                      style={{
+                        color: danger?.color,
+                        backgroundColor: danger?.colorSubtle ?? "var(--border-subtle)",
+                        border: `1px solid ${danger?.colorBorder ?? "var(--border)"}`
+                      }}>
                       {danger?.label}
                     </span>
                   </div>
@@ -145,19 +151,21 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
                 {/* Field intel hints */}
                 {incident.hints.length > 0 && (
                   <div>
-                    <div className="font-mono text-[9px] tracking-widest mb-2.5" style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border)", paddingTop: "12px" }}>
+                    <div className="font-mono text-[9px] tracking-widest mb-2.5" style={{ color: "var(--text-muted)" }}>
                       FIELD INTEL
                     </div>
-                    <ul className="flex flex-col gap-2">
-                      {incident.hints.map((hint, i) => (
-                        <li key={i} className="flex gap-2.5 items-start">
-                          <span className="font-mono text-[9px] mt-0.5 shrink-0" style={{ color: danger?.color }}>▸</span>
-                          <span className="font-mono text-[11px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                            {hint}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                    <div style={{ backgroundColor: "var(--panel-inset)", border: "1px solid var(--border-subtle)", padding: "12px" }}>
+                      <ul className="flex flex-col gap-2">
+                        {incident.hints.map((hint, i) => (
+                          <li key={i} className="flex gap-2.5 items-start">
+                            <span className="font-mono text-[9px] mt-0.5 shrink-0" style={{ color: danger?.color }}>▸</span>
+                            <span className="font-mono text-[11px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                              {hint}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 )}
               </div>
@@ -175,7 +183,8 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
                       key={i}
                       index={i}
                       heroId={selectedHeroIds[i] ?? null}
-                      dangerColor={danger?.color ?? "#ffffff"}
+                      dangerColor={danger?.color ?? "var(--border)"}
+                      dangerColorSubtle={danger?.colorSubtle ?? "var(--border-subtle)"}
                       onRemove={() => onHeroToggle(selectedHeroIds[i])}
                     />
                   ))}
@@ -189,7 +198,7 @@ export function IncidentModal({ incident, selectedHeroIds, onHeroToggle, onClose
                   <ShimmerButton
                     onClick={handleDispatch}
                     className="w-full max-w-xs py-2.5 font-mono text-xs tracking-widest uppercase text-black"
-                    background={danger?.color ?? "#22c55e"}
+                    background={danger?.color ?? "var(--success)"}
                     borderRadius="0px"
                     shimmerColor="rgba(255,255,255,0.25)"
                   >

@@ -84,7 +84,7 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
           particleCount: 80,
           spread: 60,
           origin: { y: 0.55 },
-          colors: ["#22c55e", "#fbbf24", "#3b82f6", "#a78bfa"],
+          colors: ["#1ecc6a", "#f0a800", "#3a90ff", "#9a70f0"],
           gravity: 1.2,
           scalar: 0.9,
         });
@@ -118,7 +118,7 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
   const successChance = coverage ** 2;
 
   const isSuccess = rollData?.outcome === "success";
-  const outcomeColor = isSuccess ? "#22c55e" : "#ef4444";
+  const outcomeColor = isSuccess ? "var(--success)" : "var(--danger)";
   const thresholdPct = successChance * 100;
 
   return (
@@ -185,11 +185,11 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                 >
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={radarData} outerRadius="72%">
-                      <PolarGrid stroke="#ffffff0d" />
+                      <PolarGrid stroke="#ffffff12" />
                       <PolarAngleAxis
                         dataKey="stat"
                         tick={{
-                          fill: "#6b7280",
+                          fill: "#6a5e48",
                           fontSize: 10,
                           fontFamily: "monospace",
                         }}
@@ -197,8 +197,8 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                       <Radar
                         name="Required"
                         dataKey="required"
-                        stroke="#f97316"
-                        fill="#f97316"
+                        stroke="var(--warning)"
+                        fill="var(--warning)"
                         fillOpacity={0.12}
                         strokeWidth={1.5}
                         isAnimationActive
@@ -208,8 +208,8 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                       <Radar
                         name="Dispatched"
                         dataKey="dispatched"
-                        stroke="#3b82f6"
-                        fill="#3b82f6"
+                        stroke="var(--info)"
+                        fill="var(--info)"
                         fillOpacity={0.22}
                         strokeWidth={1.5}
                         isAnimationActive
@@ -223,14 +223,14 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                 {/* Legend */}
                 <div className="flex justify-center gap-5 pb-3">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-px" style={{ backgroundColor: "#f97316" }} />
-                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "#f97316" }}>
+                    <div className="w-3 h-px" style={{ backgroundColor: "var(--warning)" }} />
+                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "var(--warning)" }}>
                       REQUIRED
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-px" style={{ backgroundColor: "#3b82f6" }} />
-                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "#3b82f6" }}>
+                    <div className="w-3 h-px" style={{ backgroundColor: "var(--info)" }} />
+                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "var(--info)" }}>
                       DISPATCHED
                     </span>
                   </div>
@@ -242,10 +242,10 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                   style={{ borderTop: "1px solid var(--border)" }}
                 >
                   <div className="flex justify-between mt-3 mb-1.5">
-                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "#22c55e80" }}>
+                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "var(--success)" }}>
                       ← SUCCESS ({Math.round(successChance * 100)}%)
                     </span>
-                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "#ef444480" }}>
+                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "var(--danger)" }}>
                       FAILURE ({Math.round((1 - successChance) * 100)}%) →
                     </span>
                   </div>
@@ -257,12 +257,12 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                     {/* Success zone */}
                     <div
                       className="absolute left-0 top-0 h-full"
-                      style={{ width: `${thresholdPct}%`, backgroundColor: "#22c55e18" }}
+                      style={{ width: `${thresholdPct}%`, backgroundColor: "var(--success-subtle)" }}
                     />
                     {/* Failure zone */}
                     <div
                       className="absolute top-0 h-full"
-                      style={{ left: `${thresholdPct}%`, right: 0, backgroundColor: "#ef444418" }}
+                      style={{ left: `${thresholdPct}%`, right: 0, backgroundColor: "var(--danger-subtle)" }}
                     />
                     {/* Threshold divider */}
                     <div
@@ -281,8 +281,8 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                         <div
                           className="w-full h-full"
                           style={{
-                            backgroundColor: showResult ? outcomeColor : "#fbbf24",
-                            boxShadow: `0 0 6px ${showResult ? outcomeColor : "#fbbf24"}`,
+                            backgroundColor: showResult ? outcomeColor : "var(--text-amber)",
+                            boxShadow: `0 0 6px ${showResult ? outcomeColor : "var(--text-amber)"}`,
                             transition: "background-color 0.3s, box-shadow 0.3s",
                           }}
                         />

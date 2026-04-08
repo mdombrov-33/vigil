@@ -9,10 +9,10 @@ import { api } from "@/api";
 import { sounds } from "@/sounds";
 
 const verdictMeta = {
-  optimal:    { color: "#22c55e", label: "OPTIMAL" },
-  good:       { color: "#86efac", label: "GOOD" },
-  suboptimal: { color: "#eab308", label: "SUBOPTIMAL" },
-  poor:       { color: "#ef4444", label: "POOR" },
+  optimal:    { color: "var(--success)", colorSubtle: "var(--success-subtle)", colorBorder: "var(--success-border)", label: "OPTIMAL" },
+  good:       { color: "var(--success)", colorSubtle: "var(--success-subtle)", colorBorder: "var(--success-border)", label: "GOOD" },
+  suboptimal: { color: "var(--warning)", colorSubtle: "var(--warning-subtle)", colorBorder: "var(--warning-border)", label: "SUBOPTIMAL" },
+  poor:       { color: "var(--danger)",  colorSubtle: "var(--danger-subtle)",  colorBorder: "var(--danger-border)",  label: "POOR" },
 } as const;
 
 interface Props {
@@ -55,7 +55,7 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
             className="relative w-full max-w-lg flex flex-col overflow-hidden"
             style={{
               backgroundColor: "var(--panel)",
-              border: `1px solid ${isSuccess ? "#22c55e25" : "#ef444425"}`,
+              border: `1px solid ${isSuccess ? "var(--success-subtle)" : "var(--danger-subtle)"}`,
               maxHeight: "88vh",
             }}
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -65,14 +65,14 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Outcome top bar */}
-            <div className="h-0.5 shrink-0" style={{ backgroundColor: isSuccess ? "var(--success)" : "var(--danger)" }} />
+            <div className="h-1 shrink-0" style={{ backgroundColor: isSuccess ? "var(--success)" : "var(--danger)" }} />
 
             {/* Header */}
             <div className="flex items-start justify-between gap-3 p-5 shrink-0">
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
                   <div className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: isSuccess ? "var(--success)" : "var(--danger)", boxShadow: `0 0 6px ${isSuccess ? "#22c55e" : "#ef4444"}` }} />
+                    style={{ backgroundColor: isSuccess ? "var(--success)" : "var(--danger)", boxShadow: `0 0 6px ${isSuccess ? "var(--success)" : "var(--danger)"}` }} />
                   <span className="font-mono text-[9px] tracking-widest"
                     style={{ color: isSuccess ? "var(--success)" : "var(--danger)" }}>
                     MISSION {isSuccess ? "SUCCESS" : "FAILURE"} — DEBRIEF
@@ -91,10 +91,11 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
               <div className="mx-5 mb-4 px-4 py-3 flex items-center gap-4 shrink-0"
                 style={{ backgroundColor: "var(--panel-raised)", border: "1px solid var(--border)" }}>
                 <div className="flex flex-col items-center shrink-0">
-                  <span className="font-mono text-2xl font-bold leading-none" style={{ color: verdict.color }}>
+                  <span className="font-mono text-3xl font-bold leading-none" style={{ color: verdict.color, textShadow: `0 0 20px ${verdict.color}60` }}>
                     {outcome.evalScore}
                   </span>
-                  <span className="font-mono text-[8px] tracking-widest mt-0.5" style={{ color: verdict.color }}>
+                  <span className="font-mono text-[9px] tracking-widest px-2 py-0.5 mt-1"
+                    style={{ color: verdict.color, backgroundColor: verdict.colorSubtle, border: `1px solid ${verdict.colorBorder}` }}>
                     {verdict.label}
                   </span>
                 </div>
@@ -143,7 +144,7 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
                     <div className="flex gap-4 p-4">
                       {activeHero.portraitUrl && (
                         <div className="relative w-20 h-20 shrink-0 rounded overflow-hidden"
-                          style={{ border: `1px solid ${isSuccess ? "#22c55e30" : "#ef444430"}` }}>
+                          style={{ border: `1px solid ${isSuccess ? "var(--success-subtle)" : "var(--danger-subtle)"}` }}>
                           <Image src={activeHero.portraitUrl} alt={activeHero.alias} fill sizes="80px" className="object-cover" />
                         </div>
                       )}

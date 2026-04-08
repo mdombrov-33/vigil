@@ -61,11 +61,11 @@ export function HeroPortrait({ hero, onClick, selected, selectable, draggable: i
     disabled: !isDraggable || !isAvailable,
   });
 
-  const borderColor = isDown ? "#3f1a1a"
-    : isOnMission ? "#3b82f6"
-    : selected ? "#3b82f6"
-    : linked ? "#fbbf24"
-    : "#1e1e2e";
+  const borderColor = isDown      ? "var(--danger-border)"
+    : isOnMission                 ? "var(--info-border)"
+    : selected                    ? "var(--info)"
+    : linked                      ? "var(--amber-border)"
+    : "var(--border)";
 
   return (
     <button
@@ -84,7 +84,7 @@ export function HeroPortrait({ hero, onClick, selected, selectable, draggable: i
         className={`relative w-36 h-36 rounded overflow-hidden transition-all ${linked ? "animate-pulse" : ""}`}
         style={{
           border: `2px solid ${borderColor}`,
-          boxShadow: isOnMission ? `0 0 12px #3b82f640` : selected ? `0 0 12px #3b82f660` : linked ? `0 0 14px #fbbf2450` : "none",
+          boxShadow: isOnMission ? "0 0 14px var(--info-subtle)" : selected ? "0 0 14px var(--info-border)" : linked ? "0 0 16px var(--amber-subtle)" : "none",
           transform: isDragging ? "scale(1.05)" : "none",
         }}
       >
@@ -97,7 +97,7 @@ export function HeroPortrait({ hero, onClick, selected, selectable, draggable: i
             className={`object-cover transition-all group-hover:scale-105 ${isDown ? "grayscale" : ""} ${isOnMission ? "brightness-75 saturate-50" : ""}`}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-lg font-mono" style={{ backgroundColor: "#0d0d1a", color: "#fbbf2460" }}>
+          <div className="w-full h-full flex items-center justify-center text-lg font-mono" style={{ backgroundColor: "var(--panel-inset)", color: "var(--amber-subtle)" }}>
             {hero.alias[0]}
           </div>
         )}
@@ -106,7 +106,7 @@ export function HeroPortrait({ hero, onClick, selected, selectable, draggable: i
           <div className="absolute inset-0 flex items-end justify-center pb-2"
             style={{ background: "linear-gradient(to bottom, transparent 40%, #00000090 100%)" }}>
             <span className="font-mono text-[9px] font-bold tracking-[0.2em]"
-              style={{ color: "#60a5fa", textShadow: "0 0 10px #3b82f6" }}>
+              style={{ color: "var(--info)", textShadow: "0 0 10px var(--info-subtle)" }}>
               DEPLOYED
             </span>
           </div>
@@ -114,42 +114,50 @@ export function HeroPortrait({ hero, onClick, selected, selectable, draggable: i
 
         {isResting && secondsLeft > 0 && (
           <div className="absolute inset-0 flex items-end justify-center pb-1" style={{ background: "linear-gradient(to top, #000000cc 40%, transparent)" }}>
-            <span className="font-mono text-[10px]" style={{ color: "#fbbf24" }}>{secondsLeft}s</span>
+            <span className="font-mono text-[10px]" style={{ color: "var(--text-amber)", textShadow: "0 0 8px var(--amber-subtle)" }}>{secondsLeft}s</span>
           </div>
         )}
 
         {isDown && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-            <span className="font-mono text-[9px] font-bold tracking-widest" style={{ color: "#ef4444", transform: "rotate(-15deg)" }}>OFFLINE</span>
+            <span className="font-mono font-bold tracking-widest" style={{ fontSize: 11, letterSpacing: "0.15em", color: "var(--danger)", transform: "rotate(-15deg)" }}>OFFLINE</span>
           </div>
         )}
 
         {selected && (
-          <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+          <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--info)" }}>
             <span className="text-[9px] text-white font-bold">✓</span>
           </div>
         )}
       </div>
 
-      <div className="flex flex-col items-center gap-0.5">
+      <div className="flex flex-col items-center gap-1">
         <span className="font-mono text-xs tracking-wider truncate max-w-[144px] text-center"
-          style={{ color: isOnMission ? "#60a5fa" : isAvailable ? "#ffffff99" : "#ffffff40" }}>
+          style={{ color: isOnMission ? "var(--info)" : isAvailable ? "var(--text-primary)" : "var(--text-muted)" }}>
           {hero.alias.toUpperCase()}
         </span>
-        <span className="font-mono text-[9px] tracking-widest"
-          style={{
-            color: isDown ? "#ef4444"
-              : isOnMission ? "#3b82f6"
-              : isResting ? "#fbbf24"
-              : health === "injured" ? "#f97316"
-              : "#ffffff20",
-          }}>
-          {isDown ? "OFFLINE"
-            : isOnMission ? "DEPLOYED"
-            : isResting ? (secondsLeft > 0 ? `RESTING ${secondsLeft}s` : "RESTING")
-            : health === "injured" ? "INJURED"
-            : "READY"}
-        </span>
+        {(() => {
+          const chip = isDown
+            ? { label: "OFFLINE",  color: "var(--danger)",     bg: "var(--danger-subtle)",  border: "var(--danger-border)"  }
+            : isOnMission
+            ? { label: "DEPLOYED", color: "var(--info)",        bg: "var(--info-subtle)",    border: "var(--info-border)"    }
+            : isResting
+            ? { label: secondsLeft > 0 ? `${secondsLeft}s` : "RESTING", color: "var(--text-amber)", bg: "var(--amber-subtle)", border: "var(--amber-border)" }
+            : health === "injured"
+            ? { label: "INJURED",  color: "var(--warning)",    bg: "var(--warning-subtle)", border: "var(--warning-border)" }
+            : null;
+          if (chip) {
+            return (
+              <span className="font-mono text-[8px] tracking-widest px-2 py-0.5"
+                style={{ color: chip.color, backgroundColor: chip.bg, border: `1px solid ${chip.border}` }}>
+                {chip.label}
+              </span>
+            );
+          }
+          return (
+            <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", backgroundColor: "var(--success-subtle)" }} />
+          );
+        })()}
       </div>
     </button>
   );
