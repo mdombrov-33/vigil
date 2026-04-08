@@ -46,7 +46,7 @@ export async function runHeroReportAgent(
 
   const result = await run(
     agent,
-    `Call get_hero_mission_history with your hero ID (${hero.id}) to recall your last missions.
+    `Call get_hero_mission_history with hero_id=${hero.id} and session_id=${incident.sessionId} to recall your missions from this session.
 Then write your mission report for the following:
 
 Incident: ${incident.title}

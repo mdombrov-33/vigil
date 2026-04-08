@@ -103,7 +103,7 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
 
   const radarData = STAT_KEYS.map((key) => ({
     stat: STAT_LABELS[key],
-    required: requiredStats[key] ?? 0,
+    required: (requiredStats[key] ?? 0) > 0 ? requiredStats[key]! : 0.01,
     dispatched: dispatchedStats[key] ?? 0,
   }));
 

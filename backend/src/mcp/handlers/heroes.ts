@@ -17,7 +17,7 @@ export async function getHeroProfile(heroId: string) {
   return result[0] ?? null;
 }
 
-export async function getHeroMissionHistory(heroId: string) {
+export async function getHeroMissionHistory(heroId: string, sessionId: string) {
   return db
     .select({
       missionId: missions.id,
@@ -31,7 +31,7 @@ export async function getHeroMissionHistory(heroId: string) {
     .from(missions)
     .innerJoin(missionHeroes, eq(missions.id, missionHeroes.missionId))
     .innerJoin(incidents, eq(missions.incidentId, incidents.id))
-    .where(eq(missionHeroes.heroId, heroId))
+    .where(and(eq(missionHeroes.heroId, heroId), eq(incidents.sessionId, sessionId)))
     .orderBy(desc(missions.startedAt))
     .limit(5);
 }
