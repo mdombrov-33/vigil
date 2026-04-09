@@ -14,13 +14,29 @@ export interface ArcBeat {
   heroReports: { alias: string; report: string }[];
 }
 
+export interface ArcPacingEntry {
+  id: string;
+  name: string;
+  beatsCompleted: number;
+  targetBeats: number;
+  beatsNeeded: number;
+}
+
+export interface PacingStatus {
+  slotsRemaining: number;
+  standaloneCount: number;
+  arcStatus: ArcPacingEntry[];
+  recommendation: string;
+}
+
 export interface SessionContext {
   arcSeeds: ArcSeed[];
   sessionMood: string | null;
-  recentIncidents: { title: string; outcome: "success" | "failure" | "expired" | null }[];
+  recentIncidents: { title: string; outcome: "success" | "failure" | "expired" | null; arcId: string | null }[];
   arcBeats: Record<string, ArcBeat[]>; // arcId → beats so far for that arc
   incidentNumber: number; // which incident this is in the session (1-indexed)
   incidentLimit: number;
+  pacingStatus: PacingStatus;
 }
 
 const incidentGeneratorAgent = new Agent({
@@ -105,10 +121,21 @@ export async function runIncidentGeneratorAgent(ctx?: SessionContext): Promise<I
     }).join("\n\n");
 
     const recentBlock = ctx.recentIncidents.length > 0
-      ? `Recent incidents this session (all, for variety — avoid repeating types):\n${ctx.recentIncidents.map((i, idx) =>
-          `  ${idx + 1}. "${i.title}"${i.outcome ? ` → ${i.outcome}` : " (ongoing)"}`
+      ? `Recent incidents this session (for variety — avoid repeating types):\n${ctx.recentIncidents.map((i, idx) =>
+          `  ${idx + 1}. "${i.title}" [${i.arcId ?? "standalone"}]${i.outcome ? ` → ${i.outcome}` : " (ongoing)"}`
         ).join("\n")}`
       : "No incidents yet this session.";
+
+    const p = ctx.pacingStatus;
+    const pacingBlock = [
+      `PACING STATUS — incident ${ctx.incidentNumber} of ${ctx.incidentLimit} (${p.slotsRemaining} slots remaining after this one):`,
+      p.arcStatus.map((a) =>
+        `  ${a.id} "${a.name}" — ${a.beatsCompleted}/${a.targetBeats} beats done, needs ${a.beatsNeeded} more`
+      ).join("\n"),
+      `  standalone — ${p.standaloneCount} so far`,
+      ``,
+      `RECOMMENDATION: ${p.recommendation}`,
+    ].join("\n");
 
     prompt = `Generate a new Nova City incident. This is incident ${ctx.incidentNumber} of ${ctx.incidentLimit} this session (${position}).${ctx.sessionMood ? `\n\nSESSION MOOD: ${ctx.sessionMood}` : ""}
 
@@ -117,15 +144,14 @@ ${arcBlock}
 
 ${recentBlock}
 
-PACING GUIDANCE:
-- You may advance one of the narrative threads above, or generate a fully standalone incident — your call based on natural pacing.
-- Don't force arc references every time. Standalone incidents provide rhythm and breathing room.
-- When advancing an arc, use the previous beats above — field reports tell you what happened on the ground, SDN notes tell you how well it was handled. Build on that continuity.
+${pacingBlock}
+
+GENERATION RULES:
+- Follow the recommendation above — it is derived from session math, not a suggestion.
+- When advancing an arc, use the previous beats — field reports tell you what happened on the ground, SDN notes tell you how well it was handled. Build on that continuity.
 - If a previous beat ended in failure or poor dispatch, the world should reflect it — the situation may have worsened.
 - Avoid repeating incident types that appeared recently.
-- If you advance an arc, set arcId to that arc's ID (e.g. "arc_a"). If standalone, set arcId to null.
-- ${ctx.incidentNumber === 1 ? "This is the opening incident — standalone. Can be any tone or scale, just don't reference arc threads yet." : ""}
-- ${ctx.incidentNumber >= ctx.incidentLimit - 3 ? "End of shift — threads should feel like they're reaching a point, not abruptly stopping." : ""}`;
+- If you advance an arc, set arcId to that arc's ID (e.g. "arc_a"). If standalone, set arcId to null.`;
   }
 
   const result = await run(incidentGeneratorAgent, prompt);

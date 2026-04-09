@@ -1,4 +1,4 @@
-import { runIncidentGeneratorAgent, type SessionContext, type ArcBeat } from "../incident-generator.js";
+import { runIncidentGeneratorAgent, type SessionContext, type ArcBeat, type PacingStatus } from "../incident-generator.js";
 import { runTriageAgent } from "../triage.js";
 import { runNarrativePickAgent } from "../narrative-pick.js";
 import { runDispatcherAgent } from "../dispatcher.js";
@@ -11,7 +11,58 @@ import {
   getArcIncidentHeroReports,
   createIncident,
 } from "@/db/queries/incidents.js";
+import type { ArcSeed } from "../schemas.js";
 import type { RequiredStats } from "@/types";
+
+function computePacingStatus(
+  arcSeeds: ArcSeed[],
+  arcBeats: Record<string, ArcBeat[]>,
+  standaloneCount: number,
+  incidentNumber: number,
+  incidentLimit: number,
+): PacingStatus {
+  const slotsRemaining = incidentLimit - incidentNumber; // after this one
+
+  const arcStatus = arcSeeds.map((arc) => {
+    const beatsCompleted = arcBeats[arc.id]?.length ?? 0;
+    const targetBeats = (arc as any).targetBeats ?? 3;
+    const beatsNeeded = Math.max(0, targetBeats - beatsCompleted);
+    return { id: arc.id, name: arc.name, beatsCompleted, targetBeats, beatsNeeded };
+  });
+
+  const totalBeatsNeeded = arcStatus.reduce((sum, a) => sum + a.beatsNeeded, 0);
+  const availableForStandalones = slotsRemaining - totalBeatsNeeded;
+
+  let recommendation: string;
+
+  if (incidentNumber === 1) {
+    recommendation = "standalone — opening incident, do not reference arc threads yet";
+  } else if (availableForStandalones <= 0) {
+    // Every remaining slot must be an arc beat to hit targets
+    const mostBehind = [...arcStatus].sort((a, b) => b.beatsNeeded - a.beatsNeeded)[0];
+    recommendation = `arc beats only from here — no slots for standalones. Advance ${mostBehind.id} ("${mostBehind.name}") — most behind pace`;
+  } else if (availableForStandalones <= 1) {
+    const mostBehind = [...arcStatus].sort((a, b) => b.beatsNeeded - a.beatsNeeded)[0];
+    recommendation = `limited standalone capacity (${availableForStandalones} slot left). Advance ${mostBehind.id} ("${mostBehind.name}") unless you just ran an arc beat`;
+  } else if (standaloneCount === 0 && incidentNumber > 2) {
+    recommendation = "standalone — no standalones yet, arcs are dominating the session";
+  } else {
+    // Check if any single arc is critically behind relative to slots
+    const critical = arcStatus.find((a) => a.beatsNeeded > 0 && a.beatsNeeded >= slotsRemaining * 0.6);
+    if (critical) {
+      recommendation = `advance ${critical.id} ("${critical.name}") — needs ${critical.beatsNeeded} beats in ${slotsRemaining} slots, at risk of not concluding`;
+    } else {
+      const standaloneRatio = standaloneCount / (incidentNumber - 1);
+      if (standaloneRatio < 0.2) {
+        recommendation = `standalone or advance an arc — standalone ratio is low (${standaloneCount} of ${incidentNumber - 1} incidents). Either is fine but lean standalone`;
+      } else {
+        recommendation = `pacing is healthy (${standaloneCount} standalone, arcs on track) — advance an arc or go standalone based on narrative feel`;
+      }
+    }
+  }
+
+  return { slotsRemaining, standaloneCount, arcStatus, recommendation };
+}
 
 export async function runIncidentCreationPipeline(sessionId: string): Promise<string> {
   console.log("[incident-pipeline] starting");
@@ -47,6 +98,7 @@ export async function runIncidentCreationPipeline(sessionId: string): Promise<st
   const recentIncidents: SessionContext["recentIncidents"] = historyRows.map((i) => ({
     title: i.title,
     outcome: i.status === "expired" ? "expired" : i.missionOutcome ?? null,
+    arcId: i.arcId ?? null,
   }));
 
   const arcBeats: Record<string, ArcBeat[]> = {};
@@ -62,6 +114,9 @@ export async function runIncidentCreationPipeline(sessionId: string): Promise<st
     });
   }
 
+  const standaloneCount = historyRows.filter((i) => i.arcId == null).length;
+  const pacingStatus = computePacingStatus(arcSeeds, arcBeats, standaloneCount, incidentNumber, incidentLimit);
+
   const sessionCtx: SessionContext = {
     arcSeeds,
     sessionMood,
@@ -69,6 +124,7 @@ export async function runIncidentCreationPipeline(sessionId: string): Promise<st
     arcBeats,
     incidentNumber,
     incidentLimit,
+    pacingStatus,
   };
 
   const { title, description, arcId } = await runIncidentGeneratorAgent(sessionCtx);
