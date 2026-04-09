@@ -112,7 +112,7 @@ Session ID is internal plumbing — never shown to the user, just lives in the U
 | **NarrativePickAgent**     | full  | no  | Picks `topHeroId` based on hero bio/powers/character fit — not stats. Receives full non-down roster (not just available) — narrative fit is independent of availability. Used for interrupt hero-specific option. |
 | **DispatcherAgent**        | fast  | yes | Stores hidden stat-based recommendation via `save_dispatch_recommendation`.                                                   |
 | **HeroReportAgent**        | full  | yes | One instance per hero, personality as system prompt. Calls `get_hero_mission_history`, writes 3-sentence first-person report. Receives MissionContext (teammates, isLead, interrupt). |
-| **ReflectionAgent**        | fast  | no  | Reviews hero report — rejects only for wrong voice, generic content, or outcome mismatch. Max 2 iterations.                   |
+| **ReflectionAgent**        | fast  | no  | Reviews hero report against hero bio + incident description — rejects only for wrong voice, generic content, or outcome mismatch. Max 2 iterations. |
 | **EvalAgent**              | full  | yes | Calls `get_dispatch_recommendation`, compares to player dispatch, scores 0–10, outputs verdict + postOpNote.                  |
 
 **Two separate hero rankings, both using all non-down heroes:**
@@ -135,13 +135,16 @@ Output: `{ arcs: ArcSeed[], incidentLimit: number, sessionMood: string }`
 
 ### IncidentGeneratorAgent
 
-Receives `SessionContext`: `{ arcSeeds, sessionMood, recentIncidents, arcBeats, incidentNumber, incidentLimit }`.
+Receives `SessionContext`: `{ arcSeeds, sessionMood, recentIncidents, arcBeats, incidentNumber, incidentLimit, pacingStatus }`.
 
-- `recentIncidents` — full session history (all incidents), lightweight: title + outcome only. Used for variety/repetition avoidance.
+- `recentIncidents` — full session history (all incidents), lightweight: `{ title, outcome, arcId }`. Used for variety/repetition avoidance and visible balance (arc vs standalone).
 - `arcBeats` — rich history grouped by arcId: previous beats for each arc including hero field reports, eval verdict, SDN post-op note. Used for narrative continuity within arc threads.
+- `pacingStatus` — pre-computed by `computePacingStatus()` in the pipeline. Contains beats completed/needed per arc, slots remaining, standalone count, and a `recommendation` string (e.g. `"advance arc_b — needs 3 beats in 9 slots"` or `"standalone — no standalones yet"`). The model is instructed to follow the recommendation — it is derived from session math, not a suggestion.
 - Generator outputs `arcId` alongside title/description — declaring which arc it's advancing, or null if standalone. Stored on the incident.
 
-Builds a contextual prompt with arc seeds, arc beat history, recent incident list, session mood, and position guidance (early/mid/late shift pressure). Generates incidents in one of 8 rotating format patterns:
+**Pacing logic (`computePacingStatus`):** runs in the incident pipeline before calling the generator. Computes `slotsRemaining = incidentLimit - incidentNumber`, `beatsNeeded` per arc, `availableForStandalones = slotsRemaining - totalBeatsNeeded`. Produces a deterministic `recommendation` string: forces standalone on incident 1; flags critical arcs (at risk of not concluding); nudges standalone when ratio is low; otherwise defers to narrative feel.
+
+Builds a contextual prompt with arc seeds, arc beat history, recent incident list (with arc labels), pacing status block, and session mood. Generates incidents in one of 8 rotating format patterns:
 
 - `DISPATCH LOG` — terse official call
 - `CALLER TRANSCRIPT` — panicked civilian call fragments
@@ -217,7 +220,7 @@ TYPE 2 — Interrupt:
 
 9.  UPDATE incident → debriefing, heroes → missionsCompleted/Failed counters
 10. HeroReportAgent × N (with MissionContext)         [parallel]
-11. ReflectionAgent × N                               [parallel]
+11. ReflectionAgent × N (with hero bio + incident description)  [parallel]
 12. UPDATE missionHeroes.report per hero
 13. UPDATE missions.outcome + completedAt
 14. EvalAgent → score/verdict/explanation/postOpNote
