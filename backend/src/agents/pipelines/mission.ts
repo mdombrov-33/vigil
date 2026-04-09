@@ -135,7 +135,7 @@ export async function runMissionPipeline(incidentId: string, heroIds: string[]):
   console.log(`[mission-pipeline] running reflection pass`);
   const polishedReports = await Promise.all(
     rawReports.map((report, i) =>
-      runReflectionAgent(report.report, dispatchedHeroes[i], outcome, incident.title),
+      runReflectionAgent(report.report, dispatchedHeroes[i], outcome, incident),
     ),
   );
 

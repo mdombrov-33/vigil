@@ -1,7 +1,7 @@
 import { Agent, run } from "@openai/agents";
 import { MODEL_FAST } from "./models.js";
 import { ReflectionOutputSchema, type ReflectionOutput } from "./schemas.js";
-import type { Hero } from "@/db/index.js";
+import type { Hero, Incident } from "@/db/index.js";
 
 const reflectionAgent = new Agent({
   name: "ReflectionAgent",
@@ -22,7 +22,7 @@ export async function runReflectionAgent(
   report: string,
   hero: Hero,
   outcome: "success" | "failure",
-  incidentTitle: string,
+  incident: Incident,
 ): Promise<string> {
   let current = report;
 
@@ -30,7 +30,10 @@ export async function runReflectionAgent(
     const result = await run(
       reflectionAgent,
       `Hero: ${hero.alias} (${hero.name})
-Incident: ${incidentTitle}
+Hero bio: ${hero.bio}
+
+Incident: ${incident.title}
+Incident description: ${incident.description}
 Outcome: ${outcome}
 
 Report to review:
