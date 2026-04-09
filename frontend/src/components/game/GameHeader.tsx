@@ -50,9 +50,6 @@ export function GameHeader({
 
       {shiftStarted && (
         <>
-          {/* Separator */}
-          <span style={{ color: "var(--border-bright)", fontSize: 10 }}>·</span>
-
           {/* Health bar */}
           <div className="flex items-center gap-1">
             <span
@@ -79,9 +76,6 @@ export function GameHeader({
               style={{ color: healthColor }}
             />
           </div>
-
-          {/* Separator */}
-          <span style={{ color: "var(--border-bright)", fontSize: 10 }}>·</span>
 
           {/* Score */}
           <div className="flex items-center gap-1">

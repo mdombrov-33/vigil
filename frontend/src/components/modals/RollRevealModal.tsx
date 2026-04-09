@@ -257,12 +257,12 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                     {/* Success zone */}
                     <div
                       className="absolute left-0 top-0 h-full"
-                      style={{ width: `${thresholdPct}%`, backgroundColor: "var(--success-subtle)" }}
+                      style={{ width: `${thresholdPct}%`, backgroundColor: "color-mix(in srgb, var(--success) 22%, transparent)" }}
                     />
                     {/* Failure zone */}
                     <div
                       className="absolute top-0 h-full"
-                      style={{ left: `${thresholdPct}%`, right: 0, backgroundColor: "var(--danger-subtle)" }}
+                      style={{ left: `${thresholdPct}%`, right: 0, backgroundColor: "color-mix(in srgb, var(--danger) 22%, transparent)" }}
                     />
                     {/* Threshold divider */}
                     <div
