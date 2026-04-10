@@ -8,6 +8,7 @@ import {
   timestamp,
   jsonb,
   primaryKey,
+  unique,
   real,
 } from "drizzle-orm/pg-core";
 import {
@@ -151,7 +152,7 @@ export const dispatchRecommendations = pgTable("dispatch_recommendations", {
   recommendedHeroIds: jsonb("recommended_hero_ids").notNull(), // string[]
   reasoning: varchar("reasoning", { length: 2000 }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [unique().on(t.incidentId)]);
 
 export type DispatchRecommendation =
   typeof dispatchRecommendations.$inferSelect;

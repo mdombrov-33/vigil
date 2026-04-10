@@ -18,6 +18,7 @@ import {
   storeMissionEval,
   saveMissionHeroReport,
 } from "@/db/queries/missions.js";
+import { withRetry } from "@/utils/retry.js";
 import type { RequiredStats } from "@/types";
 
 const TRAVEL_TIME_MS = 12_000;
@@ -128,14 +129,20 @@ export async function runMissionPipeline(incidentId: string, heroIds: string[]):
         arcName,
         interrupt: interruptContext,
       };
-      return runHeroReportAgent(hero, outcome, incident, missionContext);
+      return withRetry(
+        () => runHeroReportAgent(hero, outcome, incident, missionContext),
+        `HeroReportAgent(${hero.alias})`,
+      );
     }),
   );
 
   console.log(`[mission-pipeline] running reflection pass`);
   const polishedReports = await Promise.all(
     rawReports.map((report, i) =>
-      runReflectionAgent(report.report, dispatchedHeroes[i], outcome, incident),
+      withRetry(
+        () => runReflectionAgent(report.report, dispatchedHeroes[i], outcome, incident),
+        `ReflectionAgent(${dispatchedHeroes[i].alias})`,
+      ),
     ),
   );
 
@@ -148,7 +155,10 @@ export async function runMissionPipeline(incidentId: string, heroIds: string[]):
   await completeMission(mission.id, outcome);
 
   console.log(`[mission-pipeline] running eval`);
-  const evalResult = await runEvalAgent(incidentId, dispatchedHeroes);
+  const evalResult = await withRetry(
+    () => runEvalAgent(incidentId, dispatchedHeroes),
+    "EvalAgent",
+  );
   console.log(`[mission-pipeline] eval: ${evalResult.verdict} ${evalResult.score}/10`);
 
   await storeMissionEval(

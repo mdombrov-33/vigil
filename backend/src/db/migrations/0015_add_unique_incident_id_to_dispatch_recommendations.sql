@@ -1,0 +1,1 @@
+ALTER TABLE "dispatch_recommendations" ADD CONSTRAINT "dispatch_recommendations_incident_id_unique" UNIQUE("incident_id");
