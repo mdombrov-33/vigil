@@ -30,6 +30,8 @@ const availabilityBadge: Record<string, { label: string; color: string; bg: stri
   resting:    { label: "RESTING",  color: "var(--text-amber)", bg: "var(--amber-subtle)",   border: "var(--amber-border)"   },
 };
 
+const STAT_MAX = 100;
+
 export function HeroDetailModal({ hero, onClose }: Props) {
   useEffect(() => { if (hero) sounds.modalOpen(); }, [hero?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   function handleClose() { sounds.modalClose(); onClose(); }
@@ -81,7 +83,6 @@ export function HeroDetailModal({ hero, onClose }: Props) {
           >
             <div className="flex overflow-hidden" style={{ maxHeight: "88vh" }}>
 
-              {/* LEFT — large portrait */}
               <div className="relative shrink-0" style={{ width: 260 }}>
                 {portraitSrc ? (
                   <Image
@@ -97,25 +98,40 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                     <span className="font-mono text-6xl" style={{ color: "var(--amber-subtle)" }}>{hero.alias[0]}</span>
                   </div>
                 )}
-                {/* Right fade into panel */}
                 <div className="absolute inset-0" style={{ background: "linear-gradient(to right, transparent 65%, var(--panel) 100%)" }} />
-                {/* Bottom fade */}
                 <div className="absolute inset-0" style={{ background: "linear-gradient(to top, var(--panel) 0%, transparent 35%)" }} />
 
-                {/* Health badge */}
                 {hBadge && (
                   <div
-                    className="absolute top-3 left-3 px-2 py-0.5 font-mono text-[8px] tracking-widest z-10"
-                    style={{ backgroundColor: hBadge.bg, color: hBadge.color, border: `1px solid ${hBadge.border}` }}
+                    className="absolute top-0 left-0 right-0 h-[14px] flex items-center justify-center z-10"
+                    style={{
+                      background: health === "down"
+                        ? "repeating-linear-gradient(135deg, var(--danger) 0 8px, #1a1410 8px 16px)"
+                        : "repeating-linear-gradient(135deg, var(--warning) 0 8px, #1a1410 8px 16px)",
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: 8,
+                      letterSpacing: "0.24em",
+                      color: "#e8dfc9",
+                    }}
                   >
                     {hBadge.label}
                   </div>
                 )}
 
-                {/* Name + alias pinned at bottom of portrait */}
                 <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
-                  <div className="font-mono text-xl font-bold tracking-widest leading-none" style={{ color: "var(--text-amber)" }}>
-                    {hero.alias.toUpperCase()}
+                  <div
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontWeight: 700,
+                      fontSize: 26,
+                      lineHeight: 1,
+                      letterSpacing: "0.02em",
+                      textTransform: "uppercase",
+                      color: "var(--text-amber)",
+                    }}
+                  >
+                    {hero.alias}
                   </div>
                   <div className="font-mono text-[9px] tracking-widest mt-1" style={{ color: "var(--text-secondary)" }}>
                     {hero.name.toUpperCase()}
@@ -136,29 +152,23 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                 </div>
               </div>
 
-              {/* RIGHT — info + radar */}
               <div className="flex-1 flex flex-col overflow-hidden" style={{ borderLeft: "1px solid var(--border)" }}>
 
-                {/* Header row */}
                 <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
-                  <div className="flex flex-col gap-1.5">
-                    {(hero.age || hero.height) && (
-                      <div className="flex gap-3">
-                        {hero.age && (
-                          <span className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>
-                            AGE <span style={{ color: "var(--text-secondary)" }}>{hero.age}</span>
-                          </span>
-                        )}
-                        {hero.height && (
-                          <span className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>
-                            HT <span style={{ color: "var(--text-secondary)" }}>{hero.height}</span>
-                          </span>
-                        )}
-                      </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    {hero.age && (
+                      <span className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>
+                        AGE <span style={{ color: "var(--text-secondary)" }}>{hero.age}</span>
+                      </span>
+                    )}
+                    {hero.height && (
+                      <span className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>
+                        HT <span style={{ color: "var(--text-secondary)" }}>{hero.height}</span>
+                      </span>
                     )}
                     {aBadge && (
                       <span
-                        className="font-mono text-[8px] tracking-widest self-start px-2 py-0.5"
+                        className="font-mono text-[8px] tracking-widest px-2 py-0.5"
                         style={{ color: aBadge.color, border: `1px solid ${aBadge.border}`, backgroundColor: aBadge.bg }}
                       >
                         {aBadge.label}
@@ -169,66 +179,96 @@ export function HeroDetailModal({ hero, onClose }: Props) {
                     onClick={handleClose}
                     className="font-mono text-xs w-6 h-6 flex items-center justify-center hover:opacity-100 transition-opacity shrink-0"
                     style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}
+                    aria-label="Close"
                   >
                     ✕
                   </button>
                 </div>
 
-                {/* Scrollable body */}
                 <div className="flex-1 overflow-y-auto flex flex-col">
 
-                  {/* Bio */}
                   {hero.bio && (
-                    <div className="px-4 pt-3 pb-2 shrink-0">
-                      <p className="font-mono text-[10px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    <div className="px-4 pt-3 pb-3 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                      <p
+                        className="leading-relaxed"
+                        style={{
+                          fontFamily: "var(--font-serif)",
+                          fontSize: 14,
+                          color: "var(--text-primary)",
+                        }}
+                      >
                         {hero.bio}
                       </p>
                     </div>
                   )}
 
-                  {/* Radar chart */}
-                  <div className="px-2 shrink-0" style={{ height: 200, pointerEvents: "none" }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart data={radarData} outerRadius="68%">
-                        <PolarGrid stroke="#ffffff12" />
-                        <PolarAngleAxis
-                          dataKey="stat"
-                          tick={{ fill: "#6a5e48", fontSize: 9, fontFamily: "monospace" }}
-                        />
-                        <Radar
-                          name="Stats"
-                          dataKey="value"
-                          stroke="var(--text-amber)"
-                          fill="var(--text-amber)"
-                          fillOpacity={0.12}
-                          strokeWidth={1.5}
-                          isAnimationActive
-                          animationBegin={80}
-                          animationDuration={600}
-                        />
-                      </RadarChart>
-                    </ResponsiveContainer>
+                  <div className="px-4 py-4 shrink-0 grid gap-4 items-center" style={{ gridTemplateColumns: "160px 1fr" }}>
+                    <div style={{ height: 160, pointerEvents: "none" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart data={radarData} outerRadius="72%">
+                          <PolarGrid stroke="#ffffff12" />
+                          <PolarAngleAxis
+                            dataKey="stat"
+                            tick={{ fill: "#6a5e48", fontSize: 9, fontFamily: "monospace" }}
+                          />
+                          <Radar
+                            name="Stats"
+                            dataKey="value"
+                            stroke="var(--text-amber)"
+                            fill="var(--text-amber)"
+                            fillOpacity={0.14}
+                            strokeWidth={1.5}
+                            isAnimationActive
+                            animationBegin={80}
+                            animationDuration={600}
+                          />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      {STAT_META.map((s) => {
+                        const v = hero[s.key as keyof Hero] as number;
+                        const pct = Math.max(0, Math.min(100, (v / STAT_MAX) * 100));
+                        return (
+                          <div
+                            key={s.key}
+                            className="grid items-center gap-2"
+                            style={{ gridTemplateColumns: "70px 1fr 28px" }}
+                          >
+                            <span
+                              className="font-mono tracking-widest"
+                              style={{ color: "var(--text-muted)", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase" }}
+                            >
+                              {s.label}
+                            </span>
+                            <div
+                              className="relative h-2"
+                              style={{ backgroundColor: "var(--panel-inset)", border: "1px solid var(--border)" }}
+                            >
+                              <div
+                                className="absolute left-0 top-0 h-full"
+                                style={{ width: `${pct}%`, backgroundColor: s.color }}
+                              />
+                            </div>
+                            <span
+                              className="font-mono tabular-nums"
+                              style={{ color: "var(--text-amber)", fontSize: 10, fontWeight: 700, textAlign: "right" }}
+                            >
+                              {v}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {/* Stat values row */}
-                  <div className="px-4 pb-3 shrink-0 flex gap-3 justify-center flex-wrap">
-                    {STAT_META.map((s) => (
-                      <div key={s.key} className="flex items-center gap-1.5">
-                        <s.Icon size={10} style={{ color: s.color }} />
-                        <span className="font-mono text-[9px] tracking-wider tabular-nums" style={{ color: s.color }}>
-                          {s.label} {hero[s.key as keyof Hero] as number}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Mission record */}
                   {total > 0 && (
                     <div className="px-4 py-3 mt-auto shrink-0" style={{ borderTop: "1px solid var(--border)" }}>
                       <p className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>
-                        <span style={{ color: "var(--success)" }}>{hero.missionsCompleted}</span> completed
+                        <span style={{ color: "var(--success)" }}>{hero.missionsCompleted}</span> COMPLETED
                         {" · "}
-                        <span style={{ color: "var(--danger)" }}>{hero.missionsFailed}</span> failed
+                        <span style={{ color: "var(--danger)" }}>{hero.missionsFailed}</span> FAILED
                       </p>
                     </div>
                   )}

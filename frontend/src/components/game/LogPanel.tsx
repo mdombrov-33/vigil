@@ -7,11 +7,11 @@ import { useGameStore, type LogEntry } from "@/stores/gameStore";
 const CRTEffect = dynamic(() => import("vault66-crt-effect"), { ssr: false });
 
 const entryColor: Record<LogEntry["type"], string> = {
-  neutral: "var(--text-amber)",
+  neutral: "var(--text-primary)",
   success: "var(--success)",
   failure: "var(--danger)",
-  eval:    "var(--eval)",
-  system:  "var(--info)",
+  eval:    "var(--text-amber)",
+  system:  "var(--text-dim-warm)",
 };
 
 function LogLine({ entry }: { entry: LogEntry }) {
@@ -49,7 +49,7 @@ function LogContent() {
         {entries.length === 0 && (
           <div
             className="font-mono text-xs opacity-60"
-            style={{ color: "var(--text-amber)" }}
+            style={{ color: "var(--text-primary)" }}
           >
             Awaiting dispatch...
           </div>

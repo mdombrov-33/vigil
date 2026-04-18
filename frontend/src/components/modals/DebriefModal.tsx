@@ -26,6 +26,7 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
   const { data } = useDebrief(incidentId);
   const heroes = data?.heroes ?? [];
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setActiveHeroIdx(0); }, [incidentId]);
   useEffect(() => { if (outcome && incidentId) sounds.modalOpen(); }, [incidentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -64,47 +65,78 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
             transition={{ duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Outcome top bar */}
             <div className="h-1 shrink-0" style={{ backgroundColor: isSuccess ? "var(--success)" : "var(--danger)" }} />
 
-            {/* Header */}
             <div className="flex items-start justify-between gap-3 p-5 shrink-0">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: isSuccess ? "var(--success)" : "var(--danger)", boxShadow: `0 0 6px ${isSuccess ? "var(--success)" : "var(--danger)"}` }} />
-                  <span className="font-mono text-[9px] tracking-widest"
-                    style={{ color: isSuccess ? "var(--success)" : "var(--danger)" }}>
-                    MISSION {isSuccess ? "SUCCESS" : "FAILURE"} — DEBRIEF
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="vg-chip" style={{ color: isSuccess ? "var(--success)" : "var(--danger)" }}>
+                    <span className="vg-pip" />
+                    MISSION {isSuccess ? "SUCCESS" : "FAILURE"} · DEBRIEF
                   </span>
                 </div>
-                <h2 className="font-mono text-lg font-bold tracking-wide" style={{ color: "var(--text-amber)" }}>
-                  {outcome.title.toUpperCase()}
+                <h2
+                  className="text-[19px] leading-tight"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontWeight: 700,
+                    letterSpacing: "0.01em",
+                    color: "var(--text-amber)",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {outcome.title}
                 </h2>
               </div>
-              <button onClick={handleAck} className="font-mono text-xs mt-1 shrink-0 hover:opacity-100 transition-opacity"
-                style={{ color: "var(--text-muted)" }}>✕</button>
+              <button
+                onClick={handleAck}
+                className="font-mono text-xs mt-1 shrink-0 hover:opacity-100 transition-opacity"
+                style={{ color: "var(--text-muted)" }}
+                aria-label="Close"
+              >
+                ✕
+              </button>
             </div>
 
-            {/* Dispatch analysis row */}
             {verdict && outcome.evalScore != null && (
-              <div className="mx-5 mb-4 px-4 py-3 flex items-center gap-4 shrink-0"
-                style={{ backgroundColor: "var(--panel-raised)", border: "1px solid var(--border)" }}>
+              <div
+                className="mx-5 mb-4 px-4 py-3 flex items-center gap-4 shrink-0"
+                style={{ backgroundColor: "var(--panel-raised)", border: "1px solid var(--border)" }}
+              >
                 <div className="flex flex-col items-center shrink-0">
-                  <span className="font-mono text-3xl font-bold leading-none" style={{ color: verdict.color, textShadow: `0 0 20px ${verdict.color}60` }}>
+                  <span
+                    className="text-3xl leading-none"
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontWeight: 700,
+                      color: verdict.color,
+                      textShadow: `0 0 20px ${verdict.color}60`,
+                    }}
+                  >
                     {outcome.evalScore}
                   </span>
-                  <span className="font-mono text-[9px] tracking-widest px-2 py-0.5 mt-1"
-                    style={{ color: verdict.color, backgroundColor: verdict.colorSubtle, border: `1px solid ${verdict.colorBorder}` }}>
+                  <span
+                    className="font-mono text-[9px] tracking-widest px-2 py-0.5 mt-1"
+                    style={{ color: verdict.color, backgroundColor: verdict.colorSubtle, border: `1px solid ${verdict.colorBorder}` }}
+                  >
                     {verdict.label}
                   </span>
                 </div>
-                <div className="flex flex-col flex-1 min-w-0 pl-4" style={{ borderLeft: "1px solid var(--border)" }}>
-                  <span className="font-mono text-[9px] tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>
-                    DISPATCH ANALYSIS — hero selection vs. incident demands
+                <div
+                  className="flex flex-col flex-1 min-w-0 pl-4"
+                  style={{ borderLeft: "1px solid var(--border)" }}
+                >
+                  <span className="vg-caps mb-1.5" style={{ color: "var(--text-muted)" }}>
+                    DISPATCH ANALYSIS
                   </span>
                   {outcome.evalPostOpNote && (
-                    <p className="font-mono text-[10px] leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                    <p
+                      className="text-[13px] leading-relaxed"
+                      style={{
+                        fontFamily: "var(--font-serif)",
+                        color: "var(--text-primary)",
+                      }}
+                    >
                       {outcome.evalPostOpNote}
                     </p>
                   )}
@@ -112,10 +144,8 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
               </div>
             )}
 
-            {/* Hero reports */}
             {heroes.length > 0 && (
               <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Hero tabs */}
                 {heroes.length > 1 && (
                   <div className="flex gap-0 shrink-0 mx-5 mb-3">
                     {heroes.map((h, i) => (
@@ -137,23 +167,29 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
                   </div>
                 )}
 
-                {/* Active hero report */}
                 {activeHero && (
-                  <div className="flex-1 mx-5 mb-4 overflow-y-auto"
-                    style={{ border: "1px solid var(--border)", backgroundColor: "var(--panel-raised)" }}>
+                  <div
+                    className="flex-1 mx-5 mb-4 overflow-y-auto"
+                    style={{ border: "1px solid var(--border)", backgroundColor: "var(--panel-raised)" }}
+                  >
                     <div className="flex gap-4 p-4">
                       {activeHero.portraitUrl && (
-                        <div className="relative w-20 h-20 shrink-0 rounded overflow-hidden"
-                          style={{ border: `1px solid ${isSuccess ? "var(--success-subtle)" : "var(--danger-subtle)"}` }}>
+                        <div
+                          className="relative w-20 h-20 shrink-0 overflow-hidden"
+                          style={{ border: `1px solid ${isSuccess ? "var(--success-subtle)" : "var(--danger-subtle)"}` }}
+                        >
                           <Image src={activeHero.portraitUrl} alt={activeHero.alias} fill sizes="80px" className="object-cover" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="font-mono text-[9px] tracking-widest mb-2" style={{ color: "var(--text-secondary)" }}>
-                          {activeHero.alias.toUpperCase()} — FIELD REPORT
-                        </div>
                         {activeHero.report ? (
-                          <p className="font-mono text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                          <p
+                            className="text-[13px] leading-relaxed"
+                            style={{
+                              fontFamily: "var(--font-serif)",
+                              color: "var(--text-primary)",
+                            }}
+                          >
                             {activeHero.report}
                           </p>
                         ) : (
@@ -168,9 +204,8 @@ export function DebriefModal({ outcome, incidentId, onClose }: Props) {
               </div>
             )}
 
-            {/* Dismiss hint */}
             <div className="px-5 py-3 shrink-0 text-center" style={{ borderTop: "1px solid var(--border)" }}>
-              <span className="font-mono text-[9px] tracking-widest" style={{ color: "var(--text-muted)" }}>
+              <span className="vg-caps" style={{ color: "var(--text-muted)" }}>
                 CLICK ANYWHERE TO DISMISS
               </span>
             </div>

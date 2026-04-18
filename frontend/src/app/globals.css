@@ -22,11 +22,7 @@
   --text-muted: #564838;
 
   /* Status */
-  --success: #1ecc6a;
   --warning: #f08010;
-  --danger: #ff2c44;
-  --info: #3a90ff;
-  --eval: #a78bfa;
 
   /* Utility vars */
   --panel-inset: #070706;
@@ -63,6 +59,33 @@
   --input: #2c2820;
   --ring: #f0a80040;
   --radius: 0.25rem;
+
+  /* ---- Riso spot colors — semantic signal, not decoration ---- */
+  --riso-red: oklch(0.63 0.22 25); /* ink red — danger */
+  --riso-cyan: oklch(0.75 0.12 215); /* blueprint — info */
+  --riso-lime: oklch(0.82 0.18 135); /* success */
+  --riso-violet: oklch(0.68 0.18 305); /* eval / agent magenta */
+  --riso-yolk: oklch(0.82 0.18 85); /* variant amber */
+
+  /* ---- Paper (sparing — case-file chrome, portrait mats) ---- */
+  --paper: #e8dfc9;
+  --paper-dim: #c4b89d;
+  --paper-ink: #1a1410;
+
+  /* ---- Warmer text ramp (lives alongside --text-primary/secondary) ---- */
+  --text-hi: #e6dcc0; /* display headings, hero aliases */
+  --text-dim-warm: #7a6c54; /* labels, field intel marks */
+  --text-mute: #4d4436; /* dismiss hints, captions */
+
+  /* ---- Re-alias semantic status to the riso vars ---- */
+  --success: var(--riso-lime);
+  --danger: var(--riso-red);
+  --info: var(--riso-cyan);
+  --eval: var(--riso-violet);
+
+  /* Font variables*/
+  --font-display: "Archivo Narrow", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
 }
 
 @theme inline {
@@ -117,7 +140,6 @@
   --animate-shimmer-slide: shimmer-slide var(--speed) ease-in-out infinite
     alternate;
   --animate-spin-around: spin-around calc(var(--speed) * 2) infinite linear;
-
   @keyframes shimmer-slide {
     to {
       transform: translate(calc(100cqw - 100%), 0);

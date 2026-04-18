@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRef } from "react";
 import {
   RadarChart,
   Radar,
@@ -41,7 +40,6 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
 
   const title = incidentId ? (missionOutcomes[incidentId]?.title ?? "") : "";
 
-  // Fetch roll data on mount — the server stored it when the mission completed
   useEffect(() => {
     if (!incidentId) return;
     let cancelled = false;
@@ -49,7 +47,6 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
       .then((result) => {
         if (cancelled) return;
         setRollData(result);
-        // Update store so DebriefModal can use the outcome and pin transitions to DEBRIEF
         setOutcomeRevealed(
           incidentId,
           result.outcome,
@@ -66,7 +63,6 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incidentId]);
 
-  // Once roll data is loaded, start the animation sequence
   useEffect(() => {
     if (!rollData) return;
     const t1 = setTimeout(() => { setShowRoll(true); sounds.rollSpin(); }, 800);
@@ -149,19 +145,28 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
             transition={{ duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
-              <span
-                className="font-mono text-[9px] tracking-widest"
-                style={{ color: "var(--text-amber)" }}
-              >
-                {title.toUpperCase()}
-              </span>
+            <div className="flex items-start justify-between px-5 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+              <div className="min-w-0">
+                <div className="vg-caps mb-1.5" style={{ color: "var(--text-muted)" }}>ROLL REVEAL</div>
+                <h2
+                  className="text-[17px] leading-tight"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontWeight: 700,
+                    letterSpacing: "0.01em",
+                    color: "var(--text-amber)",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {title}
+                </h2>
+              </div>
               {showResult && (
                 <button
                   onClick={onClose}
-                  className="font-mono text-xs hover:opacity-100 transition-opacity"
+                  className="font-mono text-xs hover:opacity-100 transition-opacity shrink-0 mt-1"
                   style={{ color: "var(--text-muted)" }}
+                  aria-label="Close"
                 >
                   ✕
                 </button>
@@ -178,7 +183,6 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
               </div>
             ) : (
               <>
-                {/* Radar chart */}
                 <div
                   className="px-2"
                   style={{ height: 220, pointerEvents: "none" }}
@@ -220,56 +224,40 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                   </ResponsiveContainer>
                 </div>
 
-                {/* Legend */}
                 <div className="flex justify-center gap-5 pb-3">
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-px" style={{ backgroundColor: "var(--warning)" }} />
-                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "var(--warning)" }}>
-                      REQUIRED
-                    </span>
+                    <span className="vg-caps" style={{ color: "var(--warning)" }}>REQUIRED</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-px" style={{ backgroundColor: "var(--info)" }} />
-                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "var(--info)" }}>
-                      DISPATCHED
-                    </span>
+                    <span className="vg-caps" style={{ color: "var(--info)" }}>DISPATCHED</span>
                   </div>
                 </div>
 
-                {/* Roll bar */}
-                <div
-                  className="px-5 pb-4"
-                  style={{ borderTop: "1px solid var(--border)" }}
-                >
+                <div className="px-5 pb-4" style={{ borderTop: "1px solid var(--border)" }}>
                   <div className="flex justify-between mt-3 mb-1.5">
-                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "var(--success)" }}>
+                    <span className="vg-caps" style={{ color: "var(--success)" }}>
                       ← SUCCESS ({Math.round(successChance * 100)}%)
                     </span>
-                    <span className="font-mono text-[8px] tracking-widest" style={{ color: "var(--danger)" }}>
+                    <span className="vg-caps" style={{ color: "var(--danger)" }}>
                       FAILURE ({Math.round((1 - successChance) * 100)}%) →
                     </span>
                   </div>
 
-                  <div
-                    className="relative h-4 overflow-hidden"
-                    style={{ border: "1px solid var(--border)" }}
-                  >
-                    {/* Success zone */}
+                  <div className="relative h-4 overflow-hidden" style={{ border: "1px solid var(--border)" }}>
                     <div
                       className="absolute left-0 top-0 h-full"
                       style={{ width: `${thresholdPct}%`, backgroundColor: "color-mix(in srgb, var(--success) 22%, transparent)" }}
                     />
-                    {/* Failure zone */}
                     <div
                       className="absolute top-0 h-full"
                       style={{ left: `${thresholdPct}%`, right: 0, backgroundColor: "color-mix(in srgb, var(--danger) 22%, transparent)" }}
                     />
-                    {/* Threshold divider */}
                     <div
                       className="absolute top-0 h-full"
                       style={{ left: `${thresholdPct}%`, width: 1, backgroundColor: "#ffffff20" }}
                     />
-                    {/* Cursor */}
                     {showRoll && (
                       <motion.div
                         className="absolute top-0 h-full"
@@ -290,35 +278,37 @@ export function RollRevealModal({ incidentId, onClose }: Props) {
                     )}
                   </div>
 
-                  {/* Outcome badge */}
-                  <div className="mt-3 min-h-6 flex items-center justify-center">
+                  <div className="mt-4 min-h-10 flex items-center justify-center">
                     {showResult && (
-                      <motion.span
-                        className="font-mono text-sm font-bold tracking-widest"
+                      <motion.div
                         initial={{ opacity: 0, scale: 0.85 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.2 }}
+                        transition={{ duration: 0.25 }}
+                        className="px-4 py-1.5"
                         style={{
+                          border: `1px solid ${outcomeColor}`,
                           color: outcomeColor,
-                          textShadow: `0 0 16px ${outcomeColor}50`,
+                          fontFamily: "var(--font-display)",
+                          fontWeight: 700,
+                          fontSize: 22,
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                          textShadow: `0 0 14px ${outcomeColor}55`,
+                          background: `color-mix(in srgb, ${outcomeColor} 10%, transparent)`,
                         }}
                       >
                         {isSuccess ? "SUCCESS" : "FAILURE"}
-                      </motion.span>
+                      </motion.div>
                     )}
                   </div>
                 </div>
 
-                {/* Dismiss hint */}
                 {showResult && (
                   <div
                     className="px-5 py-2.5 shrink-0 text-center"
                     style={{ borderTop: "1px solid var(--border)" }}
                   >
-                    <span
-                      className="font-mono text-[9px] tracking-widest"
-                      style={{ color: "var(--text-muted)" }}
-                    >
+                    <span className="vg-caps" style={{ color: "var(--text-muted)" }}>
                       CLICK ANYWHERE TO DISMISS
                     </span>
                   </div>
