@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Incident, InterruptOption } from "@/types/api";
 import type { LogEntry, HeroState, InterruptState, MissionOutcomeState } from "@/types/game";
 import { cityLocations } from "@/config/cityLocations";
+import { SHIFT_CAP } from "@/config/shift";
 
 export type { LogEntry, HeroState, InterruptState, MissionOutcomeState };
 
@@ -22,6 +23,8 @@ interface GameStore {
   gameOver: boolean;
   sessionComplete: boolean;
   finalScore: number | null;
+  shiftHeroIds: string[];
+  setShiftHeroIds: (ids: string[]) => void;
 
   // Actions
   setSession: (sessionId: string, cityHealth: number, score: number) => void;
@@ -72,6 +75,9 @@ export const useGameStore = create<GameStore>((set) => ({
   gameOver: false,
   sessionComplete: false,
   finalScore: null,
+  shiftHeroIds: [],
+
+  setShiftHeroIds: (ids) => set({ shiftHeroIds: ids.slice(0, SHIFT_CAP) }),
 
   setSession: (sessionId, cityHealth, score) =>
     set({ sessionId, cityHealth, score }),

@@ -13,10 +13,10 @@ import { sounds } from "@/sounds";
 import { useGameModals } from "@/hooks/useGameModals";
 import { GameLayout } from "@/components/game/GameLayout";
 import { ShiftEndScreen } from "@/components/game/ShiftEndScreen";
-import { HeroDetailModal } from "@/components/modals/HeroDetailModal";
-import { InterruptModal } from "@/components/modals/InterruptModal";
-import { DebriefModal } from "@/components/modals/DebriefModal";
-import { RollRevealModal } from "@/components/modals/RollRevealModal";
+import { HeroDetailModal } from "@/components/game/modals/HeroDetailModal";
+import { InterruptModal } from "@/components/game/modals/InterruptModal";
+import { DebriefModal } from "@/components/game/modals/DebriefModal";
+import { RollRevealModal } from "@/components/game/modals/RollRevealModal";
 
 export default function ActiveShiftPage() {
   const params = useParams();
@@ -61,7 +61,7 @@ export default function ActiveShiftPage() {
   function handleEndShift() {
     stopMusic();
     reset();
-    router.push("/shift");
+    router.push("/");
   }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -75,13 +75,11 @@ export default function ActiveShiftPage() {
         onIncidentClick={modals.handleIncidentClick}
         onHeroClick={modals.openHeroDetail}
         onEndShift={handleEndShift}
-        shiftStarted={true}
         selectedIncident={modals.selectedIncident}
         selectedHeroIds={modals.selectedHeroIds}
         onHeroToggle={modals.handleHeroToggle}
         onIncidentClose={modals.closeIncident}
         onDispatched={modals.handleDispatched}
-        startScreenSlot={null}
         volume={volume}
         onVolumeChange={(v) => { setVolume(v); sounds.setVolume(v); }}
         linkedHeroAlias={modals.selectedIncident?.linkedHeroAlias ?? null}

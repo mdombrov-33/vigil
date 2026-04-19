@@ -8,14 +8,12 @@ const SEGMENTS = 20;
 
 interface Props {
   onEndShift?: () => void;
-  shiftStarted?: boolean;
   volume?: number;
   onVolumeChange?: (v: number) => void;
 }
 
 export function GameHeader({
   onEndShift,
-  shiftStarted,
   volume,
   onVolumeChange,
 }: Props) {
@@ -48,9 +46,7 @@ export function GameHeader({
         VIGIL SDN
       </span>
 
-      {shiftStarted && (
-        <>
-          {/* Health bar */}
+      {/* Health bar */}
           <div className="flex items-center gap-1">
             <span
               className="text-[9px] font-mono mr-1 shrink-0"
@@ -88,11 +84,9 @@ export function GameHeader({
               style={{ color: "var(--text-amber)" }}
             />
           </div>
-        </>
-      )}
 
       {/* Volume control */}
-      {shiftStarted && volume !== undefined && onVolumeChange && (
+      {volume !== undefined && onVolumeChange && (
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => onVolumeChange(volume > 0 ? 0 : 0.35)}
@@ -115,7 +109,7 @@ export function GameHeader({
       )}
 
       {/* End shift — right side */}
-      {shiftStarted && onEndShift && (
+      {onEndShift && (
         <button
           onClick={onEndShift}
           className={`${volume !== undefined ? "" : "ml-auto"} font-mono text-[9px] tracking-widest uppercase px-2 py-1 hover:opacity-100 transition-opacity`}
