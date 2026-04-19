@@ -15,7 +15,7 @@ export default function Landing() {
   const { starting, startShift } = useStartShift();
 
   return (
-    <div className="h-screen w-screen relative bg-[var(--background)] text-[var(--text-primary)]">
+    <div className="h-screen w-screen relative bg-background text-primary-text">
       <GridBackground />
 
       <NavBar
@@ -25,7 +25,7 @@ export default function Landing() {
         starting={starting}
       />
 
-      <div className="fixed left-0 right-0 bottom-0 z-10 top-[42px]">
+      <div className="fixed left-0 right-0 bottom-0 z-10 top-10.5">
         {tab === "home" && (
           <HomeScreen
             heroes={heroes}

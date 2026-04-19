@@ -52,10 +52,10 @@ export function UserButton() {
   return (
     <button
       onClick={() => setSignedIn(false)}
-      className="flex items-center gap-[7px] px-[10px] py-[5px] font-mono text-[10px] font-bold tracking-[0.14em] uppercase bg-transparent text-[var(--text-primary)] border border-[var(--border)] transition-colors"
+      className="flex items-center gap-1.75 px-2.5 py-1.25 font-mono text-[10px] font-bold tracking-[0.14em] uppercase bg-transparent text-primary-text border border-border transition-colors"
       aria-label="Sign out"
     >
-      <span className="grid place-items-center rounded-full flex-shrink-0 w-5 h-5 text-[9px] font-bold bg-[var(--text-amber)] text-[var(--background)]">
+      <span className="grid place-items-center rounded-full shrink-0 w-5 h-5 text-[9px] font-bold bg-amber text-background">
         {initial}
       </span>
       <span>{handle}</span>

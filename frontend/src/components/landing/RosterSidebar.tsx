@@ -31,8 +31,7 @@ export function RosterSidebar({
     if (!q) return heroes;
     return heroes.filter(
       (h) =>
-        h.alias.toLowerCase().includes(q) ||
-        h.name.toLowerCase().includes(q),
+        h.alias.toLowerCase().includes(q) || h.name.toLowerCase().includes(q),
     );
   }, [heroes, search]);
 
@@ -40,20 +39,20 @@ export function RosterSidebar({
   const shiftFull = shiftCount >= SHIFT_CAP;
 
   return (
-    <div className="flex-shrink-0 flex flex-col w-[280px] border-r border-[var(--border)] bg-[rgba(10,9,8,0.45)]">
-      <div className="px-[14px] py-[12px] border-b border-[var(--border)]">
+    <div className="shrink-0 flex flex-col w-70 border-r border-border bg-[rgba(10,9,8,0.45)]">
+      <div className="px-3.5 py-3 border-b border-border">
         <input
           type="text"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search heroes"
-          className="w-full font-mono outline-none text-[11px] tracking-[0.06em] text-[var(--text-primary)] border border-[var(--border)] px-[10px] py-2 transition-colors bg-[rgba(0,0,0,0.45)]"
+          className="w-full font-mono outline-none text-[11px] tracking-[0.06em] text-primary-text border border-border px-2.5 py-2 transition-colors bg-[rgba(0,0,0,0.45)]"
         />
       </div>
 
       {isSignedIn && (
-        <div className="flex items-center justify-between px-[14px] py-[9px] border-b border-[var(--border)]">
-          <span className="uppercase text-[9px] font-bold tracking-[0.22em] text-[var(--text-muted)]">
+        <div className="flex items-center justify-between px-3.5 py-2.25 border-b border-border">
+          <span className="uppercase text-[9px] font-bold tracking-[0.22em] text-muted-text">
             Shift roster
           </span>
           <span

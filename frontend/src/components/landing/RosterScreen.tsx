@@ -20,8 +20,7 @@ export function RosterScreen({ heroes }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const selected =
-    heroes.find((h) => h.id === selectedId) ?? heroes[0] ?? null;
+  const selected = heroes.find((h) => h.id === selectedId) ?? heroes[0] ?? null;
   const shiftFull = shiftHeroIds.length >= SHIFT_CAP;
 
   function toggleShift(id: string) {
@@ -58,7 +57,7 @@ export function RosterScreen({ heroes }: Props) {
             />
           </>
         ) : (
-          <div className="flex-1 grid place-items-center font-mono text-[11px] text-[var(--text-muted)]">
+          <div className="flex-1 grid place-items-center font-mono text-[11px] text-muted-text">
             No hero selected
           </div>
         )}
