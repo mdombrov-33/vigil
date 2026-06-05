@@ -11,7 +11,6 @@ import {
   getArcIncidentHeroReports,
   createIncident,
 } from "@/db/queries/incidents.js";
-import { withRetry } from "@/utils/retry.js";
 import type { ArcSeed } from "../schemas.js";
 import type { RequiredStats } from "@/types";
 
@@ -128,10 +127,7 @@ export async function runIncidentCreationPipeline(sessionId: string): Promise<st
     pacingStatus,
   };
 
-  const { title, description, arcId } = await withRetry(
-    () => runIncidentGeneratorAgent(sessionCtx),
-    "IncidentGeneratorAgent",
-  );
+  const { title, description, arcId } = await runIncidentGeneratorAgent(sessionCtx);
   console.log(`[incident-pipeline] generated: "${title}"`);
   log(sessionId, `Incident detected: ${title}`);
 
@@ -146,10 +142,10 @@ export async function runIncidentCreationPipeline(sessionId: string): Promise<st
 
   // Triage always runs. NarrativePickAgent is skipped for personal arcs — linked hero is always topHero.
   const [triage, narrativePick] = await Promise.all([
-    withRetry(() => runTriageAgent(description), "TriageAgent"),
+    runTriageAgent(description),
     linkedHero
       ? Promise.resolve({ heroId: linkedHero.id, reasoning: "personal arc — linked hero" })
-      : withRetry(() => runNarrativePickAgent(description, allHeroes), "NarrativePickAgent"),
+      : runNarrativePickAgent(description, allHeroes),
   ]);
   const narrativeHero = allHeroes.find((h) => h.id === narrativePick.heroId);
   console.log(
@@ -191,10 +187,7 @@ export async function runIncidentCreationPipeline(sessionId: string): Promise<st
   });
   console.log(`[incident-pipeline] incident saved: ${incident.id}`);
 
-  await withRetry(
-    () => runDispatcherAgent(incident.id, recommended, triage, description),
-    "DispatcherAgent",
-  );
+  await runDispatcherAgent(incident.id, recommended, triage, description);
   console.log(`[incident-pipeline] recommendation stored`);
 
   send(sessionId, "incident:new", {

@@ -1,5 +1,5 @@
 import { Agent, run } from "@openai/agents";
-import { MODEL_FULL } from "./models.js";
+import { MODEL_FULL, RETRY } from "./models.js";
 import { mcpServer } from "./mcp.js";
 import { EvalOutputSchema, type EvalOutput } from "./schemas.js";
 import type { Hero } from "@/db/index.js";
@@ -27,6 +27,7 @@ Example: "Threat coverage exceeded requirements. Edge deficit left the technical
   mcpServers: [mcpServer],
   outputType: EvalOutputSchema,
   model: MODEL_FULL,
+  modelSettings: { retry: RETRY },
 });
 
 export async function runEvalAgent(

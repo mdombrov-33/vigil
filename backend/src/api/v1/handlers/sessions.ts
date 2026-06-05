@@ -3,7 +3,6 @@ import { sendJson } from "@/utils/response";
 import { registerSession, pauseSession, resumeSession } from "@/services/game-loop.js";
 import { send } from "@/sse/manager.js";
 import { runSessionArcAgent } from "@/agents/session-arc.js";
-import { withRetry } from "@/utils/retry.js";
 import {
   createSession,
   getSessionById,
@@ -51,7 +50,7 @@ export async function startSession(req: Request, res: Response) {
     arcGenerating.add(session.id);
     try {
       const heroBios = await getHeroBios();
-      const arcResult = await withRetry(() => runSessionArcAgent(heroBios), "SessionArcAgent");
+      const arcResult = await runSessionArcAgent(heroBios);
       console.log(`[session] arc seeds generated — ${arcResult.arcs.map((a) => a.name).join(", ")} — limit: ${arcResult.incidentLimit}`);
       await updateSessionArcs(session.id, arcResult.arcs, arcResult.sessionMood, arcResult.incidentLimit);
     } finally {

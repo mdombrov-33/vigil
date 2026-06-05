@@ -1,5 +1,5 @@
 import { Agent, run } from "@openai/agents";
-import { MODEL_FAST } from "./models.js";
+import { MODEL_FAST, RETRY } from "./models.js";
 import { mcpServer } from "./mcp.js";
 import type { Hero } from "@/db/index.js";
 import type { TriageOutput } from "./schemas.js";
@@ -17,6 +17,7 @@ The reasoning should be factual and analytical — stat coverage, hero capabilit
 Do not editorialize. This is an internal system record.`,
   mcpServers: [mcpServer],
   model: MODEL_FAST,
+  modelSettings: { retry: RETRY },
 });
 
 export async function runDispatcherAgent(

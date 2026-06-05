@@ -1,5 +1,5 @@
 import { Agent, run } from "@openai/agents";
-import { MODEL_FAST } from "./models.js";
+import { MODEL_FAST, RETRY } from "./models.js";
 import {
   IncidentGeneratorOutputSchema,
   type IncidentGeneratorOutput,
@@ -84,6 +84,7 @@ Title: short, punchy, specific. Vary tone with the format — can be deadpan, bu
 CRITICAL: Never include the format name in the output. Do not prefix the description with "INTERNAL MEMO:", "DISPATCH LOG:", "CALLER TRANSCRIPT:", or any label. Just write the description in that voice and style — the label is for your reference only.`,
   outputType: IncidentGeneratorOutputSchema,
   model: MODEL_FAST,
+  modelSettings: { retry: RETRY },
 });
 
 export async function runIncidentGeneratorAgent(ctx?: SessionContext): Promise<IncidentGeneratorOutput> {

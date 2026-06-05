@@ -1,5 +1,5 @@
 import { run, Agent } from "@openai/agents";
-import { MODEL_FULL } from "./models.js";
+import { MODEL_FULL, RETRY } from "./models.js";
 import { mcpServer } from "./mcp.js";
 import { HeroReportSchema, type HeroReport } from "./schemas.js";
 import type { Hero, Incident } from "@/db/index.js";
@@ -21,6 +21,7 @@ export function createHeroReportAgent(hero: Hero) {
     mcpServers: [mcpServer],
     outputType: HeroReportSchema,
     model: MODEL_FULL,
+    modelSettings: { retry: RETRY },
   });
 }
 

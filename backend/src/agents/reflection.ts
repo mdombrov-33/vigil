@@ -1,5 +1,5 @@
 import { Agent, run } from "@openai/agents";
-import { MODEL_FAST } from "./models.js";
+import { MODEL_FAST, RETRY } from "./models.js";
 import { ReflectionOutputSchema, type ReflectionOutput } from "./schemas.js";
 import type { Hero, Incident } from "@/db/index.js";
 
@@ -16,6 +16,7 @@ Evaluate mission reports written by hero agents. Approve reports that:
 Reject and rewrite ONLY for: wrong voice, generic content, or outcome mismatch. Do NOT reject for length — 3 sentences is correct. If rewriting, match the hero's voice and stay within 3 sentences.`,
   outputType: ReflectionOutputSchema,
   model: MODEL_FAST,
+  modelSettings: { retry: RETRY },
 });
 
 export async function runReflectionAgent(

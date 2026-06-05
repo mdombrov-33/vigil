@@ -1,5 +1,5 @@
 import { Agent, run } from "@openai/agents";
-import { MODEL_FULL } from "./models.js";
+import { MODEL_FULL, RETRY } from "./models.js";
 import { SessionArcOutputSchema, type SessionArcOutput } from "./schemas.js";
 
 export interface HeroBio {
@@ -52,6 +52,7 @@ OUTPUT NOTES:
 - linkedHeroAlias: set to the hero's alias for personal arcs, null for everything else.`,
   outputType: SessionArcOutputSchema,
   model: MODEL_FULL,
+  modelSettings: { retry: RETRY },
 });
 
 export async function runSessionArcAgent(heroBios: HeroBio[]): Promise<SessionArcOutput> {

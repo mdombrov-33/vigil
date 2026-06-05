@@ -1,5 +1,5 @@
 import { Agent, run } from "@openai/agents";
-import { MODEL_FAST } from "./models.js";
+import { MODEL_FAST, RETRY } from "./models.js";
 import { TriageOutputSchema, type TriageOutput } from "./schemas.js";
 
 const triageAgent = new Agent({
@@ -32,6 +32,7 @@ Rules:
 - interruptOptions: if hasInterrupt, provide 2–4 options. Exactly one must have isHeroSpecific=true — guaranteed success if the top hero was dispatched, no stat check needed, do NOT set requiredStat/requiredValue on it. All other options must have requiredStat and requiredValue. All option text must read as a plain action description — never reference "your hero", "if you sent", or any meta-game language. Same tone as the other options.`,
   outputType: TriageOutputSchema,
   model: MODEL_FAST,
+  modelSettings: { retry: RETRY },
 });
 
 export async function runTriageAgent(description: string): Promise<TriageOutput> {

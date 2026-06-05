@@ -1,5 +1,5 @@
 import { Agent, run } from "@openai/agents";
-import { MODEL_FULL } from "./models.js";
+import { MODEL_FULL, RETRY } from "./models.js";
 import { NarrativePickOutputSchema, type NarrativePickOutput } from "./schemas.js";
 import type { Hero } from "@/db/index.js";
 
@@ -27,6 +27,7 @@ Pick the hero who would look at this incident and say "yes, this is mine." Not t
 Return the hero's UUID exactly as provided.`,
   outputType: NarrativePickOutputSchema,
   model: MODEL_FULL,
+  modelSettings: { retry: RETRY },
 });
 
 export async function runNarrativePickAgent(
