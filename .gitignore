@@ -19,6 +19,7 @@
 
 # env files
 **/.env*
+!**/.env.example
 
 # Terraform
 **/.terraform/
