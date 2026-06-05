@@ -1,8 +1,11 @@
-name: Deploy backend
+name: Backend CI/CD
 
 on:
   push:
     branches: [main]
+    paths:
+      - "backend/**"
+  pull_request:
     paths:
       - "backend/**"
 
@@ -13,7 +16,33 @@ permissions:
   id-token: write
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
   deploy:
+    # Gate the deploy on a green check; only ship on pushes to main.
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
