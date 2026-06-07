@@ -30,7 +30,7 @@ const availabilityBadge: Record<string, { label: string; color: string; bg: stri
   resting:    { label: "RESTING",  color: "var(--text-amber)", bg: "var(--amber-subtle)",   border: "var(--amber-border)"   },
 };
 
-const STAT_MAX = 100;
+const STAT_MAX = 10;
 
 export function HeroDetailModal({ hero, onClose }: Props) {
   useEffect(() => { if (hero) sounds.modalOpen(); }, [hero?.id]); // eslint-disable-line react-hooks/exhaustive-deps
